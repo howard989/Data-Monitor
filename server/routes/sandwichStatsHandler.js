@@ -9,6 +9,9 @@ const {
 router.get('/stats', authMiddleware, async (req, res) => {
   try {
     const stats = await getSandwichStats();
+    
+    res.set('Cache-Control', 'private, max-age=6, stale-while-revalidate=30');
+    
     res.json({
       success: true,
       data: stats
@@ -24,7 +27,9 @@ router.get('/stats', authMiddleware, async (req, res) => {
 
 router.get('/recent', authMiddleware, async (req, res) => {
   try {
-    const limit = parseInt(req.query.limit) || 50;
+    const n = Number.parseInt(req.query.limit, 10);
+    const limit = Number.isFinite(n) ? Math.min(Math.max(n, 1), 200) : 50;
+    
     const blocks = await getRecentBlocks(limit);
     res.json({
       success: true,

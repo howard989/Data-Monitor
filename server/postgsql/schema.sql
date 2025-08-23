@@ -12,3 +12,8 @@ CREATE TABLE IF NOT EXISTS public.block_sandwiches (
 
 CREATE INDEX IF NOT EXISTS idx_block_sandwiches_updated_at
   ON public.block_sandwiches (updated_at DESC);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_block_overview_recent
+ON block_overview (block_number DESC)
+INCLUDE (has_sandwich, updated_at);
+

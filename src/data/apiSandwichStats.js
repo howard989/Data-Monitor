@@ -67,21 +67,3 @@ export const fetchHourlyStats = async (hours = 24) => {
   }
 };
 
-export const fetchTotalCount = async () => {
-  try {
-    const response = await fetch(`${API_URL}/api/sandwich/total`, {
-      method: 'GET',
-      headers: getAuthHeaders()
-    });
-    
-    if (!response.ok) {
-      throw new Error('Failed to fetch total count');
-    }
-    
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Error fetching total count:', error);
-    throw error;
-  }
-};

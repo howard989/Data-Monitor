@@ -7,26 +7,62 @@ function ident(x) {
   return `"${x}"`;
 }
 
-const TBL_OVERVIEW = `${ident(SCHEMA)}.${ident('block_overview')}`;
+const schemaName = String(SCHEMA || 'public').toLowerCase();
+const TBL_OVERVIEW = `${ident(schemaName)}.${ident('block_overview')}`;
+
+
+let statsCache = null;
+let statsCacheTime = 0;
+let statsInFlight = null;              
+const STATS_CACHE_DURATION = 6000;    
 
 async function getSandwichStats() {
   try {
+    const now = Date.now();
+    
+
+    if (statsCache && (now - statsCacheTime) < STATS_CACHE_DURATION) {
+      return statsCache;
+    }
+
+
+    if (statsInFlight) {
+      return statsInFlight;
+    }
+
     const sql = `
       SELECT 
-        COUNT(*) as total_blocks,
-        COUNT(CASE WHEN has_sandwich = true THEN 1 END) as sandwich_blocks,
+        COUNT(*) AS total_blocks,
+        COUNT(*) FILTER (WHERE has_sandwich) AS sandwich_blocks,
         ROUND(
-          (COUNT(CASE WHEN has_sandwich = true THEN 1 END)::numeric / 
-           NULLIF(COUNT(*)::numeric, 0)) * 100, 
+          COALESCE(100.0 * COUNT(*) FILTER (WHERE has_sandwich) / 
+          NULLIF(COUNT(*), 0), 0), 
           4
-        ) as sandwich_percentage,
-        MAX(block_number) as latest_block,
-        MIN(block_number) as earliest_block
+        ) AS sandwich_percentage,
+        MAX(block_number) AS latest_block,
+        MIN(block_number) AS earliest_block
       FROM ${TBL_OVERVIEW};
     `;
     
-    const result = await pool.query(sql);
-    return result.rows[0];
+
+    statsInFlight = pool.query(sql)
+      .then(result => {
+        const raw = result.rows[0];
+        statsCache = {
+          total_blocks: Number(raw.total_blocks),
+          sandwich_blocks: Number(raw.sandwich_blocks),
+          sandwich_percentage: Number(raw.sandwich_percentage),
+          latest_block: Number(raw.latest_block),
+          earliest_block: Number(raw.earliest_block)
+        };
+        statsCacheTime = Date.now();  
+        return statsCache;
+      })
+      .finally(() => { 
+        statsInFlight = null; 
+      });
+    
+    return statsInFlight;
   } catch (error) {
     console.error('Error getting sandwich stats:', error);
     throw error;
