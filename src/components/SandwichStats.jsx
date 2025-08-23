@@ -18,42 +18,58 @@ const SandwichStats = () => {
     };
   };
 
-  const fetchData = async () => {
+  const fetchStats = async () => {
     try {
-      const [statsRes, blocksRes] = await Promise.all([
-        fetch(`${API_URL}/api/sandwich/stats`, {
-          method: 'GET',
-          headers: getAuthHeaders()
-        }),
-        fetch(`${API_URL}/api/sandwich/recent?limit=20`, {
-          method: 'GET',
-          headers: getAuthHeaders()
-        })
-      ]);
+      const statsRes = await fetch(`${API_URL}/api/sandwich/stats`, {
+        method: 'GET',
+        headers: getAuthHeaders()
+      });
 
-      if (statsRes.ok && blocksRes.ok) {
+      if (statsRes.ok) {
         const statsData = await statsRes.json();
-        const blocksData = await blocksRes.json();
-        
         setStats(statsData.data);
-        setRecentBlocks(blocksData.data);
         setLastUpdate(new Date());
       }
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error('Error fetching stats:', error);
     } finally {
       setLoading(false);
     }
   };
 
+  const fetchBlocks = async () => {
+    try {
+      const blocksRes = await fetch(`${API_URL}/api/sandwich/recent?limit=20`, {
+        method: 'GET',
+        headers: getAuthHeaders()
+      });
+
+      if (blocksRes.ok) {
+        const blocksData = await blocksRes.json();
+        setRecentBlocks(blocksData.data);
+      }
+    } catch (error) {
+      console.error('Error fetching blocks:', error);
+    }
+  };
+
   useEffect(() => {
-    fetchData();
+
+    fetchStats();
+    fetchBlocks();
   
-    const interval = setInterval(() => {
-      fetchData();
+    const statsInterval = setInterval(() => {
+      fetchStats();
     }, 5000);
 
-    return () => clearInterval(interval);
+    const blocksInterval = setInterval(() => {
+      fetchBlocks();
+    }, 60000);
+
+    return () => {
+      clearInterval(statsInterval);
+      clearInterval(blocksInterval);
+    };
   }, []);
 
   const formatNumber = (num) => {

@@ -137,11 +137,11 @@ app.use('/api/arb', arbDetailsHandler);
 app.use('/api/sandwich', sandwichStatsHandler);
 
 
-app.listen(port, '0.0.0.0', () => {
-    console.log(`Server running at http://0.0.0.0:${port}`);
-});
-
-
-// app.listen(port, 'localhost', () => {
-//     console.log(`Server running at http://localhost:${port}`);
+// app.listen(port, '0.0.0.0', () => {
+//     console.log(`Server running at http://0.0.0.0:${port}`);
 // });
+
+
+app.listen(port, 'localhost', () => {
+    console.log(`Server running at http://localhost:${port}`);
+});
