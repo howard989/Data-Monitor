@@ -11,8 +11,8 @@ const {
 
 
 const app = express();
-// const port = 3001; //本地
-const port = 8189;
+const port = 3001; //本地
+// const port = 8189;
 
 
 
@@ -77,7 +77,7 @@ app.post('/login', async (req, res) => {
             return res.status(400).json({ message: '用户名或密码错误' });
         }
 
-        const token = jwt.sign({ username }, SECRET_KEY, { expiresIn: '1h' });
+        const token = jwt.sign({ username }, SECRET_KEY, { expiresIn: '10h' });
         res.json({ token });
     } catch (err) {
         console.error('登录错误:', err);
@@ -112,7 +112,7 @@ app.post('/secondary-login', async (req, res) => {
         const token = jwt.sign(
             { username: user.username, role: user.role },
             SECRET_KEY,
-            { expiresIn: '5h' }
+            { expiresIn: '10h' }
         );
 
         res.json({
@@ -137,11 +137,11 @@ app.use('/api/arb', arbDetailsHandler);
 app.use('/api/sandwich', sandwichStatsHandler);
 
 
-// app.listen(port, '0.0.0.0', () => {
-//     console.log(`Server running at http://0.0.0.0:${port}`);
-// });
-
-
-app.listen(port, 'localhost', () => {
-    console.log(`Server running at http://localhost:${port}`);
+app.listen(port, '0.0.0.0', () => {
+    console.log(`Server running at http://0.0.0.0:${port}`);
 });
+
+
+// app.listen(port, 'localhost', () => {
+//     console.log(`Server running at http://localhost:${port}`);
+// });
