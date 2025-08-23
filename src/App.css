@@ -1,0 +1,80 @@
+ /* src/App.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+.navbar {
+    background-color: #000; 
+}
+
+.nav-link {
+    color: #fff; 
+    padding: 0.5rem 1rem;
+}
+
+.nav-link:hover {
+    color: #1DA1F2; 
+}
+
+.active-nav-link {
+    border-bottom: 2px solid #1DA1F2;
+}
+
+.main-content {
+    padding: 2rem;
+}
+
+.section-title {
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin-bottom: 1rem;
+}
+
+.input-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: bold;
+}
+
+.select-input,
+.textarea-input {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ccc;
+    border-radius: 0.25rem;
+}
+
+.textarea-input {
+    min-height: 150px;
+}
+
+.button {
+    display: inline-block;
+    background-color: #1DA1F2;
+    color: #fff;
+    padding: 0.5rem 1rem;
+    border-radius: 0.25rem;
+    text-align: center;
+    cursor: pointer;
+    margin-top: 1rem;
+}
+
+.button:hover {
+    background-color: #0d95e8;
+}
+
+.card {
+    background-color: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.preformatted {
+    background-color: #f9fafb;
+    padding: 1rem;
+    border-radius: 0.25rem;
+    overflow-x: auto;
+}
