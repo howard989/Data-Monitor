@@ -6,9 +6,9 @@ const SandwichStats = () => {
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(new Date());
 
-  const API_URL = 'http://localhost:3001';
+  // const API_URL = 'http://localhost:3001';
 
-  // const API_URL = 'http://localhost:8189';
+  const API_URL = 'http://15.204.163.45:8189';  
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem('token');

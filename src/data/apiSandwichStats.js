@@ -1,4 +1,6 @@
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+// const API_URL = 'http://localhost:3001';
+
+const API_URL = 'http://15.204.163.45:8189';  
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('token');
