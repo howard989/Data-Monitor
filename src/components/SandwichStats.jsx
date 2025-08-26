@@ -1,4 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { AuthContext } from '../context/AuthContext';
+import { authFetch, API_URL } from '../data/apiClient';
 
 const SandwichStats = () => {
   const [stats, setStats] = useState(null);
@@ -6,32 +9,34 @@ const SandwichStats = () => {
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(new Date());
 
-  // const API_URL = 'http://localhost:3001';
+  const { authToken, logout } = useContext(AuthContext);
+  const navigate = useNavigate();
 
-  const API_URL = 'http://15.204.163.45:8189';  
-
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem('token');
-    return {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    };
+  const handleUnauthorized = () => {
+    logout();
+    navigate('/login');
   };
 
   const fetchStats = async () => {
     try {
-      const statsRes = await fetch(`${API_URL}/api/sandwich/stats`, {
-        method: 'GET',
-        headers: getAuthHeaders()
+      const statsRes = await authFetch(`${API_URL}/api/sandwich/stats`, {
+        method: 'GET'
       });
 
-      if (statsRes.ok) {
-        const statsData = await statsRes.json();
-        setStats(statsData.data);
-        setLastUpdate(new Date());
+      if (!statsRes.ok) {
+        if (statsRes.status === 401) handleUnauthorized();
+        return;
       }
+
+      const statsData = await statsRes.json();
+      setStats(statsData.data);
+      setLastUpdate(new Date());
     } catch (error) {
-      console.error('Error fetching stats:', error);
+      if (error.status === 401) {
+        handleUnauthorized();
+      } else {
+        console.error('Error fetching stats:', error);
+      }
     } finally {
       setLoading(false);
     }
@@ -39,21 +44,31 @@ const SandwichStats = () => {
 
   const fetchBlocks = async () => {
     try {
-      const blocksRes = await fetch(`${API_URL}/api/sandwich/recent?limit=20`, {
-        method: 'GET',
-        headers: getAuthHeaders()
+      const blocksRes = await authFetch(`${API_URL}/api/sandwich/recent?limit=20`, {
+        method: 'GET'
       });
 
-      if (blocksRes.ok) {
-        const blocksData = await blocksRes.json();
-        setRecentBlocks(blocksData.data);
+      if (!blocksRes.ok) {
+        if (blocksRes.status === 401) handleUnauthorized();
+        return;
       }
+
+      const blocksData = await blocksRes.json();
+      setRecentBlocks(blocksData.data);
     } catch (error) {
-      console.error('Error fetching blocks:', error);
+      if (error.status === 401) {
+        handleUnauthorized();
+      } else {
+        console.error('Error fetching blocks:', error);
+      }
     }
   };
 
   useEffect(() => {
+    if (!authToken) {
+      navigate('/login');
+      return;
+    }
 
     fetchStats();
     fetchBlocks();
@@ -70,7 +85,7 @@ const SandwichStats = () => {
       clearInterval(statsInterval);
       clearInterval(blocksInterval);
     };
-  }, []);
+  }, [authToken]); 
 
   const formatNumber = (num) => {
     return new Intl.NumberFormat('en-US').format(num);

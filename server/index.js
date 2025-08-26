@@ -8,11 +8,11 @@ const {
     allClient1,
     connectallClient1,
 } = require('../src/data/redisClient');
-
+const cookieParser = require('cookie-parser'); 
 
 const app = express();
-const port = 3001; //本地
-// const port = 8189;
+// const port = 3001; //本地
+const port = 8189;
 
 
 
@@ -26,15 +26,16 @@ const sandwichStatsHandler = require('./routes/sandwichStatsHandler');
 
 
 
+const corsOrigins = ['http://localhost:3000', 'http://15.204.163.45:8190'];
 
 const SECRET_KEY = process.env.SECRET_KEY;
+const REFRESH_SECRET = process.env.REFRESH_SECRET || SECRET_KEY;
 
-app.use(cors());
+app.use(cors({ origin: corsOrigins, credentials: true }));
+
+// app.use(cors());
 app.use(express.json());
-
-
-
-
+app.use(cookieParser());
 
 
 
@@ -44,14 +45,7 @@ app.use(express.json());
 })();
 
 
-
-
-
-
-
-
-
-
+const cookieOptions = { httpOnly: true, sameSite: 'lax', secure: false, maxAge: 30 * 24 * 3600 * 1000 };
 
 app.post('/login', async (req, res) => {
     const { username, password } = req.body;
@@ -77,24 +71,40 @@ app.post('/login', async (req, res) => {
             return res.status(400).json({ message: '用户名或密码错误' });
         }
 
-        const token = jwt.sign({ username }, SECRET_KEY, { expiresIn: '10h' });
-        res.json({ token });
+        const access = jwt.sign({ username }, SECRET_KEY, { expiresIn: '2h' });
+        const refresh = jwt.sign({ username }, REFRESH_SECRET, { expiresIn: '30d' });
+        res.cookie('rt', refresh, cookieOptions);
+        res.json({ token: access });
     } catch (err) {
         console.error('登录错误:', err);
         res.status(500).json({ message: '服务器错误' });
     }
 });
 
+
+app.post('/api/auth/refresh', async (req, res) => {
+    const token = req.cookies?.rt;
+    if (!token) return res.status(401).json({ success: false });
+    try {
+      const payload = jwt.verify(token, REFRESH_SECRET);
+      const access = jwt.sign({ username: payload.username }, SECRET_KEY, { expiresIn: '2h' });
+      const refresh = jwt.sign({ username: payload.username }, REFRESH_SECRET, { expiresIn: '30d' });
+      res.cookie('rt', refresh, cookieOptions);
+      res.json({ success: true, token: access });
+    } catch {
+      res.status(401).json({ success: false });
+    }
+  });
+
 app.get('/protected', authMiddleware, (req, res) => {
     res.json({ message: `欢迎, ${req.user.username}!` });
 });
 
-// 二次验证路由
+
 app.post('/secondary-login', async (req, res) => {
     const { username, password } = req.body;
 
     try {
-        // 验证用户名和密码
         const userKey = `user:${username}`;
         const user = await allClient1.hGetAll(userKey);
 
@@ -109,15 +119,21 @@ app.post('/secondary-login', async (req, res) => {
         }
 
 
-        const token = jwt.sign(
+        const access = jwt.sign(
             { username: user.username, role: user.role },
             SECRET_KEY,
-            { expiresIn: '10h' }
+            { expiresIn: '2h' }
         );
+        const refresh = jwt.sign(
+            { username: user.username, role: user.role },
+            REFRESH_SECRET,
+            { expiresIn: '30d' }
+        );
+        res.cookie('rt', refresh, cookieOptions);
 
         res.json({
             isSuccess: true,
-            token,
+            token: access,
             user: {
                 username: user.username,
                 role: user.role
@@ -137,11 +153,11 @@ app.use('/api/arb', arbDetailsHandler);
 app.use('/api/sandwich', sandwichStatsHandler);
 
 
-// app.listen(port, '0.0.0.0', () => {
-//     console.log(`Server running at http://0.0.0.0:${port}`);
-// });
-
-
-app.listen(port, 'localhost', () => {
-    console.log(`Server running at http://localhost:${port}`);
+app.listen(port, '0.0.0.0', () => {
+    console.log(`Server running at http://0.0.0.0:${port}`);
 });
+
+
+// app.listen(port, 'localhost', () => {
+//     console.log(`Server running at http://localhost:${port}`);
+// });

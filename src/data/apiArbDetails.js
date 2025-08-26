@@ -41,7 +41,10 @@ export const getArbStatisticV2 = async () => {
 
 export async function loginUser(username, password) {
   try {
-    const response = await axios.post(`${BASE}/login`, { username, password });
+    const response = await axios.post(`${BASE}/login`, 
+      { username, password },
+      { withCredentials: true } 
+    );
     return response.data;
   } catch (error) {
     throw error.response?.data || { message: '登录失败' };
