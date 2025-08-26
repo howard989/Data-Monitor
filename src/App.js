@@ -20,7 +20,7 @@ function App() {
                                 path="/"
                                 element={
                                     <PrivateRoute>
-                                        <ArbDetails />
+                                        <SandwichStats />
                                     </PrivateRoute>
                                 }
                             />
@@ -33,6 +33,15 @@ function App() {
                                     </PrivateRoute>
                                 }
                             />
+                            
+                            {/* <Route
+                                path="/arb-details"
+                                element={
+                                    <PrivateRoute>
+                                        <ArbDetails />
+                                    </PrivateRoute>
+                                }
+                            /> */}
 
                             <Route path="/login" element={<Login />} />
 

@@ -45,7 +45,7 @@ function Navbar() {
             
             {/* 桌面端导航 */}
             <div className="hidden md:flex md:space-x-8">
-              <NavLink 
+              {/* <NavLink 
                 to="/" 
                 className={({ isActive }) =>
                   isActive
@@ -54,7 +54,7 @@ function Navbar() {
                 }
               >
                 48club &lt;&gt; Binance Wallet
-              </NavLink>
+              </NavLink> */}
               
               <NavLink 
                 to="/sandwich-stats" 
@@ -109,7 +109,7 @@ function Navbar() {
       {menuOpen && (
         <div className="md:hidden bg-white border-t border-gray-100">
           <div className="px-2 pt-2 pb-3 space-y-1">
-            <NavLink
+            {/* <NavLink
               to="/"
               onClick={() => setMenuOpen(false)}
               className={({ isActive }) =>
@@ -119,7 +119,7 @@ function Navbar() {
               }
             >
               48club &lt;&gt; Binance Wallet
-            </NavLink>
+            </NavLink> */}
             
             <NavLink
               to="/sandwich-stats"

@@ -26,7 +26,7 @@ function Login() {
         try {
             const response = await loginUser(username, password);
             login(response.token);
-            navigate('/pair-info');
+            navigate('/');
         } catch (err) {
             setError(err.message || '登录失败');
         } finally {
