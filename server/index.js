@@ -11,8 +11,8 @@ const {
 const cookieParser = require('cookie-parser'); 
 
 const app = express();
-// const port = 3001; //本地
-const port = 8189;
+const port = 3001; //本地
+// const port = 8189;
 
 
 
@@ -20,7 +20,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const authMiddleware = require('../src/middleware/authMiddleware');
 
-const arbDetailsHandler = require('./routes/arbDetailsHandler');
+
 const sandwichStatsHandler = require('./routes/sandwichStatsHandler');
 
 
@@ -149,15 +149,15 @@ app.post('/secondary-login', async (req, res) => {
 
 
 
-app.use('/api/arb', arbDetailsHandler);
+
 app.use('/api/sandwich', sandwichStatsHandler);
 
 
-app.listen(port, '0.0.0.0', () => {
-    console.log(`Server running at http://0.0.0.0:${port}`);
-});
-
-
-// app.listen(port, 'localhost', () => {
-//     console.log(`Server running at http://localhost:${port}`);
+// app.listen(port, '0.0.0.0', () => {
+//     console.log(`Server running at http://0.0.0.0:${port}`);
 // });
+
+
+app.listen(port, 'localhost', () => {
+    console.log(`Server running at http://localhost:${port}`);
+});

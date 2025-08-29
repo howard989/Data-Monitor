@@ -1,5 +1,5 @@
-// const API_URL = 'http://localhost:3001';
-const API_URL = 'http://15.204.163.45:8189';
+const API_URL = 'http://localhost:3001';
+// const API_URL = 'http://15.204.163.45:8189';
 
 class HttpError extends Error {
   constructor(status, message) {

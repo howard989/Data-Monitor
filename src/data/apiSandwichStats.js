@@ -1,3 +1,5 @@
+import { authFetch } from './apiClient';
+
 // const API_URL = 'http://localhost:3001';
 
 const API_URL = 'http://15.204.163.45:8189';  
@@ -67,3 +69,35 @@ export const fetchHourlyStats = async (hours = 24) => {
   }
 };
 
+
+export const fetchAttackByTx = async (hash) => {
+  const res = await authFetch(`${API_URL}/api/sandwich/by-tx/${hash.toLowerCase()}`, 
+    { method: 'GET' }
+  );
+  if (!res.ok) throw new Error('Failed to fetch by tx');
+  return res.json(); 
+};
+
+export const fetchAttacksByBlock = async (blockNumber) => {
+  const res = await authFetch(`${API_URL}/api/sandwich/by-block/${blockNumber}`, 
+    { method: 'GET' }
+  );
+  if (!res.ok) throw new Error('Failed to fetch by block');
+  return res.json(); 
+};
+
+
+export const fetchBuilderList = async () => {
+  const res = await authFetch(`${API_URL}/api/sandwich/builders`, { method: 'GET' });
+  if (!res.ok) throw new Error('Failed to fetch builders');
+  return res.json(); 
+};
+
+export const fetchSandwichStats = async (builderName) => {
+  const url = builderName
+    ? `${API_URL}/api/sandwich/stats?builder=${encodeURIComponent(builderName)}`
+    : `${API_URL}/api/sandwich/stats`;
+  const res = await authFetch(url, { method: 'GET' });
+  if (!res.ok) throw new Error('Failed to fetch stats');
+  return res.json(); 
+};

@@ -3,12 +3,18 @@ const router = express.Router();
 const authMiddleware = require('../../src/middleware/authMiddleware');
 const {
   getSandwichStats,
-  getRecentBlocks
+  getRecentBlocks,
+  findSandwichByTx,
+  getBlockSandwiches,
+  getHourlyStats,
+  getBuilderList
 } = require('../postgsql/query');
+
 
 router.get('/stats', authMiddleware, async (req, res) => {
   try {
-    const stats = await getSandwichStats();
+    const builder = req.query.builder ? String(req.query.builder) : null;
+    const stats = await getSandwichStats(builder);
     
     res.set('Cache-Control', 'private, max-age=6, stale-while-revalidate=30');
     
@@ -22,6 +28,17 @@ router.get('/stats', authMiddleware, async (req, res) => {
       success: false,
       error: 'Failed to fetch sandwich statistics'
     });
+  }
+});
+
+
+router.get('/builders', authMiddleware, async (req, res) => {
+  try {
+    const list = await getBuilderList();
+    res.json({ success: true, data: list });
+  } catch (e) {
+    console.error('Error in /builders:', e);
+    res.status(500).json({ success: false, error: 'Failed to fetch builder list' });
   }
 });
 
@@ -41,6 +58,43 @@ router.get('/recent', authMiddleware, async (req, res) => {
       success: false,
       error: 'Failed to fetch recent blocks'
     });
+  }
+});
+
+
+router.get('/hourly', authMiddleware, async (req, res) => {
+  try {
+    const h = Number.parseInt(req.query.hours, 10);
+    const hours = Number.isFinite(h) ? Math.min(Math.max(h, 1), 168) : 24;
+    const data = await getHourlyStats(hours);
+    res.json({ success: true, data });
+  } catch (e) {
+    console.error('Error in /hourly:', e);
+    res.status(500).json({ success: false, error: 'Failed to fetch hourly stats' });
+  }
+});
+
+
+
+router.get('/by-tx/:hash', authMiddleware, async (req, res) => {
+  try {
+    const hash = String(req.params.hash || '').toLowerCase();
+    const data = await findSandwichByTx(hash);
+    res.json({ success: true, data });
+  } catch (e) {
+    console.error('Error in /by-tx:', e);
+    res.status(500).json({ success: false, error: 'Failed to query by tx hash' });
+  }
+});
+
+router.get('/by-block/:block', authMiddleware, async (req, res) => {
+  try {
+    const block = String(req.params.block);
+    const { data, meta, is_clean } = await getBlockSandwiches(block);
+    res.json({ success: true, data, count: data.length, is_clean, meta });
+  } catch (e) {
+    console.error('Error in /by-block:', e);
+    res.status(500).json({ success: false, error: 'Failed to query by block' });
   }
 });
 
