@@ -65,11 +65,21 @@ const SandwichStats = () => {
     setBuilderLoading(true);
     try {
       const result = await fetchBuilderSandwiches(builder, page, 50, startDate, endDate);
-      if (result.success) {
+      if (result.success === false && result.maxPages) {
+        // Handle max pages exceeded error
+        alert(result.error || `Maximum ${result.maxPages} pages allowed. Please use date filter to narrow down results.`);
+        setBuilderSandwiches([]);
+        setBuilderTotal(0);
+        setBuilderTotalPages(0);
+      } else if (result.success || result.data) {
         setBuilderSandwiches(result.data || []);
         setBuilderTotal(result.total || 0);
-        setBuilderTotalPages(result.totalPages || 0);
+        setBuilderTotalPages(Math.min(result.totalPages || 0, 100)); // Cap at 100 pages
         setBuilderPage(page);
+        // Update date range if returned from backend
+        if (result.dateRange && !startDate && !endDate) {
+          setBuilderDateRange(result.dateRange);
+        }
       }
     } catch (error) {
       console.error('Error loading builder sandwiches:', error);
@@ -327,7 +337,8 @@ const SandwichStats = () => {
                 onClick={() => {
                   setShowBuilderDetails(true);
                   setBuilderPage(1);
-                  loadBuilderSandwiches(selectedBuilder, 1, builderDateRange.start, builderDateRange.end);
+                  // without date params  default to last 30 days
+                  loadBuilderSandwiches(selectedBuilder, 1);
                 }}
                 className="px-4 py-2 rounded-lg bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 font-medium hover:from-yellow-400 hover:to-amber-500 transition-all shadow-md hover:shadow-lg"
               >
@@ -682,11 +693,68 @@ const SandwichStats = () => {
                 </div>
                 <div className="mt-2 text-sm text-gray-600">
                   Total: {formatNumber(builderTotal)} attacks
-                  {builderDateRange.start && builderDateRange.end && (
+                  {builderDateRange.start && builderDateRange.end ? (
                     <span className="ml-2">
                       ({builderDateRange.start} to {builderDateRange.end})
                     </span>
+                  ) : (
+                    <span className="ml-2 text-amber-600">
+                      (Showing last 30 days by default)
+                    </span>
                   )}
+                </div>
+                
+                {/* Quick date range buttons */}
+                <div className="flex items-center gap-2 mt-3">
+                  <span className="text-sm text-gray-600">Quick select:</span>
+                  <button
+                    onClick={() => {
+                      const end = new Date().toISOString().split('T')[0];
+                      const start = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                      setBuilderDateRange({ start, end });
+                      setBuilderPage(1);
+                      loadBuilderSandwiches(selectedBuilder, 1, start, end);
+                    }}
+                    className="text-xs px-2 py-1 rounded bg-amber-100 hover:bg-amber-200 text-gray-700"
+                  >
+                    Last 7 days
+                  </button>
+                  <button
+                    onClick={() => {
+                      const end = new Date().toISOString().split('T')[0];
+                      const start = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                      setBuilderDateRange({ start, end });
+                      setBuilderPage(1);
+                      loadBuilderSandwiches(selectedBuilder, 1, start, end);
+                    }}
+                    className="text-xs px-2 py-1 rounded bg-amber-100 hover:bg-amber-200 text-gray-700"
+                  >
+                    Last 30 days
+                  </button>
+                  <button
+                    onClick={() => {
+                      const end = new Date().toISOString().split('T')[0];
+                      const start = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                      setBuilderDateRange({ start, end });
+                      setBuilderPage(1);
+                      loadBuilderSandwiches(selectedBuilder, 1, start, end);
+                    }}
+                    className="text-xs px-2 py-1 rounded bg-amber-100 hover:bg-amber-200 text-gray-700"
+                  >
+                    Last 2 months
+                  </button>
+                  <button
+                    onClick={() => {
+                      const end = new Date().toISOString().split('T')[0];
+                      const start = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                      setBuilderDateRange({ start, end });
+                      setBuilderPage(1);
+                      loadBuilderSandwiches(selectedBuilder, 1, start, end);
+                    }}
+                    className="text-xs px-2 py-1 rounded bg-amber-100 hover:bg-amber-200 text-gray-700"
+                  >
+                    Last 3 months
+                  </button>
                 </div>
                 
                 {/* Date filter for builder details */}
@@ -721,11 +789,12 @@ const SandwichStats = () => {
                       onClick={() => {
                         setBuilderDateRange({ start: '', end: '' });
                         setBuilderPage(1);
+                        // default to last 30 days
                         loadBuilderSandwiches(selectedBuilder, 1);
                       }}
                       className="text-sm px-3 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
                     >
-                      Clear
+                      Reset to default
                     </button>
                   )}
                 </div>
@@ -820,6 +889,11 @@ const SandwichStats = () => {
                       <div className="flex items-center gap-3">
                         <span className="text-sm text-gray-600">
                           Page {builderPage} of {builderTotalPages}
+                          {builderTotalPages > 100 && (
+                            <span className="ml-2 text-xs text-red-600">
+                              (Max 100 pages - use date filter for more)
+                            </span>
+                          )}
                         </span>
                         <div className="flex items-center gap-2">
                           <span className="text-sm text-gray-500">Go to:</span>

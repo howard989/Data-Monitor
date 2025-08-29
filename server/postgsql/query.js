@@ -262,6 +262,28 @@ async function getBlockSandwiches(blockNumber) {
 async function getBuilderSandwiches(builderName, page = 1, limit = 50, startDate = null, endDate = null) {
   const offset = (page - 1) * limit;
   
+  // Maximum pages limit
+  const MAX_PAGES = 100;
+  if (page > MAX_PAGES) {
+    return {
+      success: false,
+      error: `Exceeded maximum page limit (${MAX_PAGES}). Please use date filter to narrow down the results.`,
+      maxPages: MAX_PAGES,
+      data: [],
+      total: 0,
+      page,
+      limit,
+      totalPages: 0
+    };
+  }
+  
+  // Default to last 30 days if no date range provided
+  if (!startDate && !endDate) {
+    const now = new Date();
+    endDate = now.toISOString().split('T')[0];
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    startDate = thirtyDaysAgo.toISOString().split('T')[0];
+  }
   
   let dateFilter = '';
   const countParams = [builderName];
@@ -331,7 +353,9 @@ async function getBuilderSandwiches(builderName, page = 1, limit = 50, startDate
     page,
     limit,
     totalPages: Math.ceil((countRes.rows[0]?.total || 0) / limit),
-    data: dataRes.rows
+    data: dataRes.rows,
+    dateRange: { start: startDate, end: endDate },
+    success: true
   };
 }
 
