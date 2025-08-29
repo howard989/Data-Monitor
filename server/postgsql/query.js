@@ -38,8 +38,9 @@ async function getSandwichStats(builderName = null, startDate = null, endDate = 
   let paramIndex = 1;
 
   if (startDate && endDate) {
+    const endDateTime = endDate.includes('T') ? endDate : `${endDate}T23:59:59`;
     dateFilter = ` AND block_time >= $${paramIndex}::timestamp AND block_time <= $${paramIndex + 1}::timestamp`;
-    params.push(startDate, endDate);
+    params.push(startDate, endDateTime);
     paramIndex += 2;
   }
 
@@ -267,9 +268,10 @@ async function getBuilderSandwiches(builderName, page = 1, limit = 50, startDate
   const dataParams = [builderName];
   
   if (startDate && endDate) {
+    const endDateTime = endDate.includes('T') ? endDate : `${endDate}T23:59:59`;
     dateFilter = ' AND sa.block_time >= $2::timestamp AND sa.block_time <= $3::timestamp';
-    countParams.push(startDate, endDate);
-    dataParams.push(startDate, endDate);
+    countParams.push(startDate, endDateTime);
+    dataParams.push(startDate, endDateTime);
   }
   
   const countSql = `

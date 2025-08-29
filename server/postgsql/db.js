@@ -28,7 +28,7 @@ const pool = new Pool({
   user: 'bnb_king',                
   host: '40.160.31.228',      
   database: 'king',              
-  password: 'RGA4yvu5tjv8pmx.uje!',    
+  password: '',    
   port: 5432,                 
   max: 10,                       
   idleTimeoutMillis: 30000,       
