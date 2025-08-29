@@ -13,8 +13,8 @@ const TBL_OVERVIEW = `${ident(schemaName)}.${ident('block_overview')}`;
 
 let statsCache = null;
 let statsCacheTime = 0;
-let statsInFlight = null;              
-const STATS_CACHE_DURATION = 6000;    
+let statsInFlight = null;
+const STATS_CACHE_DURATION = 6000;
 
 async function getBuilderList() {
   const sql = `
@@ -67,7 +67,7 @@ async function getSandwichStats(builderName = null, startDate = null, endDate = 
     const { rows } = await pool.query(sql, params);
     const r = rows[0] || {};
     const total = Number(r.total_blocks || 0);
-    const sand  = Number(r.sandwich_blocks || 0);
+    const sand = Number(r.sandwich_blocks || 0);
     return {
       scope: 'builder',
       builder_name: builderName,
@@ -169,33 +169,38 @@ async function getRecentBlocks(limit = 50) {
 
 async function findSandwichByTx(txHash) {
   const sql = `
-    SELECT
-      sa.id,
-      sa.block_number,
-      sa.block_time,
-      sa.block_time_ms,
-      sa.front_tx_hash,
-      sa.victim_tx_hash,
-      COALESCE(
-        ARRAY_REMOVE(ARRAY_AGG(sb.tx_hash ORDER BY sb.sequence NULLS LAST), NULL),
-        '{}'
-      ) AS backrun_txes,
-      CASE
-        WHEN bo.builder_kind = 'builder' THEN bo.builder_group
-        WHEN bo.builder_kind = 'bribe'   THEN bo.builder_bribe_name
-        ELSE NULL
-      END AS builder_name,
-      bo.validator_name
-    FROM public.sandwich_attack sa
-    JOIN ${TBL_OVERVIEW} bo ON bo.block_number = sa.block_number
-    LEFT JOIN public.sandwich_backrun sb ON sb.attack_id = sa.id
-    WHERE sa.front_tx_hash = $1
-       OR sa.victim_tx_hash = $1
-       OR EXISTS (SELECT 1 FROM public.sandwich_backrun sb2 WHERE sb2.attack_id = sa.id AND sb2.tx_hash = $1)
-    GROUP BY sa.id, bo.builder_kind, bo.builder_group, bo.builder_bribe_name, bo.validator_name
-    ORDER BY sa.block_number DESC
-    LIMIT 50;
-  `;
+  SELECT
+    sa.id,
+    sa.block_number,
+    sa.block_time,
+    sa.block_time_ms,
+    sa.front_tx_hash,
+    sa.victim_tx_hash,
+    sa.profit_wei,
+    sa.profit_token,
+    sa.is_bundle,
+    sa.bundle_size,
+    sa.victim_to,    
+    COALESCE(
+      ARRAY_REMOVE(ARRAY_AGG(sb.tx_hash ORDER BY sb.sequence NULLS LAST), NULL),
+      '{}'
+    ) AS backrun_txes,
+    CASE
+      WHEN bo.builder_kind = 'builder' THEN bo.builder_group
+      WHEN bo.builder_kind = 'bribe'   THEN bo.builder_bribe_name
+      ELSE NULL
+    END AS builder_name,
+    bo.validator_name
+  FROM public.sandwich_attack sa
+  JOIN ${TBL_OVERVIEW} bo ON bo.block_number = sa.block_number
+  LEFT JOIN public.sandwich_backrun sb ON sb.attack_id = sa.id
+  WHERE sa.front_tx_hash = $1
+     OR sa.victim_tx_hash = $1
+     OR EXISTS (SELECT 1 FROM public.sandwich_backrun sb2 WHERE sb2.attack_id = sa.id AND sb2.tx_hash = $1)
+  GROUP BY sa.id, bo.builder_kind, bo.builder_group, bo.builder_bribe_name, bo.validator_name
+  ORDER BY sa.block_number DESC
+  LIMIT 50;
+`;
   const { rows } = await pool.query(sql, [String(txHash).toLowerCase()]);
   return rows;
 }
@@ -225,30 +230,36 @@ async function getBlockMeta(blockNumber) {
 
 async function getBlockSandwiches(blockNumber) {
   const listSql = `
-    SELECT
-      sa.id,
-      sa.block_number,
-      sa.block_time,
-      sa.block_time_ms,
-      sa.front_tx_hash,
-      sa.victim_tx_hash,
-      COALESCE(
-        ARRAY_REMOVE(ARRAY_AGG(sb.tx_hash ORDER BY sb.sequence NULLS LAST), NULL),
-        '{}'
-      ) AS backrun_txes,
-      CASE
-        WHEN bo.builder_kind = 'builder' THEN bo.builder_group
-        WHEN bo.builder_kind = 'bribe'   THEN bo.builder_bribe_name
-        ELSE NULL
-      END AS builder_name,
-      bo.validator_name
-    FROM public.sandwich_attack sa
-    JOIN ${TBL_OVERVIEW} bo ON bo.block_number = sa.block_number
-    LEFT JOIN public.sandwich_backrun sb ON sb.attack_id = sa.id
-    WHERE sa.block_number = $1
-    GROUP BY sa.id, bo.builder_kind, bo.builder_group, bo.builder_bribe_name, bo.validator_name
-    ORDER BY sa.id;
-  `;
+  SELECT
+    sa.id,
+    sa.block_number,
+    sa.block_time,
+    sa.block_time_ms,
+    sa.front_tx_hash,
+    sa.victim_tx_hash,
+    sa.profit_wei,
+    sa.profit_token,
+    sa.is_bundle,
+    sa.bundle_size,
+    sa.victim_to,
+    COALESCE(
+      ARRAY_REMOVE(ARRAY_AGG(sb.tx_hash ORDER BY sb.sequence NULLS LAST), NULL),
+      '{}'
+    ) AS backrun_txes,
+    CASE
+      WHEN bo.builder_kind = 'builder' THEN bo.builder_group
+      WHEN bo.builder_kind = 'bribe'   THEN bo.builder_bribe_name
+      ELSE NULL
+    END AS builder_name,
+    bo.validator_name
+  FROM public.sandwich_attack sa
+  JOIN ${TBL_OVERVIEW} bo ON bo.block_number = sa.block_number
+  LEFT JOIN public.sandwich_backrun sb ON sb.attack_id = sa.id
+  WHERE sa.block_number = $1
+  GROUP BY sa.id, bo.builder_kind, bo.builder_group, bo.builder_bribe_name, bo.validator_name
+  ORDER BY sa.id;
+`;
+
   const [meta, listRes] = await Promise.all([
     getBlockMeta(blockNumber),
     pool.query(listSql, [String(blockNumber)]),
@@ -261,7 +272,7 @@ async function getBlockSandwiches(blockNumber) {
 
 async function getBuilderSandwiches(builderName, page = 1, limit = 50, startDate = null, endDate = null) {
   const offset = (page - 1) * limit;
-  
+
   // Maximum pages limit
   const MAX_PAGES = 100;
   if (page > MAX_PAGES) {
@@ -276,7 +287,7 @@ async function getBuilderSandwiches(builderName, page = 1, limit = 50, startDate
       totalPages: 0
     };
   }
-  
+
   // Default to last 30 days if no date range provided
   if (!startDate && !endDate) {
     const now = new Date();
@@ -284,18 +295,18 @@ async function getBuilderSandwiches(builderName, page = 1, limit = 50, startDate
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     startDate = thirtyDaysAgo.toISOString().split('T')[0];
   }
-  
+
   let dateFilter = '';
   const countParams = [builderName];
   const dataParams = [builderName];
-  
+
   if (startDate && endDate) {
     const endDateTime = endDate.includes('T') ? endDate : `${endDate}T23:59:59`;
     dateFilter = ' AND sa.block_time >= $2::timestamp AND sa.block_time <= $3::timestamp';
     countParams.push(startDate, endDateTime);
     dataParams.push(startDate, endDateTime);
   }
-  
+
   const countSql = `
     SELECT COUNT(DISTINCT sa.id) as total
     FROM public.sandwich_attack sa
@@ -307,47 +318,53 @@ async function getBuilderSandwiches(builderName, page = 1, limit = 50, startDate
       )
       ${dateFilter};
   `;
-  
-  
+
+
   const limitParam = startDate && endDate ? '$4' : '$2';
   const offsetParam = startDate && endDate ? '$5' : '$3';
   dataParams.push(limit, offset);
-  
+
   const dataSql = `
-    SELECT
-      sa.id,
-      sa.block_number,
-      sa.block_time,
-      sa.front_tx_hash,
-      sa.victim_tx_hash,
-      COALESCE(
-        ARRAY_REMOVE(ARRAY_AGG(sb.tx_hash ORDER BY sb.sequence NULLS LAST), NULL),
-        '{}'
-      ) AS backrun_txes,
-      CASE
-        WHEN bo.builder_kind = 'builder' THEN bo.builder_group
-        WHEN bo.builder_kind = 'bribe' THEN bo.builder_bribe_name
-      END AS builder_name,
-      bo.validator_name
-    FROM public.sandwich_attack sa
-    JOIN ${TBL_OVERVIEW} bo ON bo.block_number = sa.block_number
-    LEFT JOIN public.sandwich_backrun sb ON sb.attack_id = sa.id
-    WHERE bo.builder_address IS NOT NULL
-      AND (
-        (bo.builder_kind = 'builder' AND bo.builder_group = $1) OR
-        (bo.builder_kind = 'bribe' AND bo.builder_bribe_name = $1)
-      )
-      ${dateFilter}
-    GROUP BY sa.id, bo.builder_kind, bo.builder_group, bo.builder_bribe_name, bo.validator_name
-    ORDER BY sa.block_number DESC
-    LIMIT ${limitParam} OFFSET ${offsetParam};
-  `;
-  
+  SELECT
+    sa.id,
+    sa.block_number,
+    sa.block_time,
+    sa.front_tx_hash,
+    sa.victim_tx_hash,
+    sa.profit_wei,
+    sa.profit_token,
+    sa.is_bundle,
+    sa.bundle_size,
+    sa.victim_to,
+    COALESCE(
+      ARRAY_REMOVE(ARRAY_AGG(sb.tx_hash ORDER BY sb.sequence NULLS LAST), NULL),
+      '{}'
+    ) AS backrun_txes,
+    CASE
+      WHEN bo.builder_kind = 'builder' THEN bo.builder_group
+      WHEN bo.builder_kind = 'bribe' THEN bo.builder_bribe_name
+    END AS builder_name,
+    bo.validator_name
+  FROM public.sandwich_attack sa
+  JOIN ${TBL_OVERVIEW} bo ON bo.block_number = sa.block_number
+  LEFT JOIN public.sandwich_backrun sb ON sb.attack_id = sa.id
+  WHERE bo.builder_address IS NOT NULL
+    AND (
+      (bo.builder_kind = 'builder' AND bo.builder_group = $1) OR
+      (bo.builder_kind = 'bribe' AND bo.builder_bribe_name = $1)
+    )
+    ${dateFilter}
+  GROUP BY sa.id, bo.builder_kind, bo.builder_group, bo.builder_bribe_name, bo.validator_name
+  ORDER BY sa.block_number DESC
+  LIMIT ${limitParam} OFFSET ${offsetParam};
+`;
+
+
   const [countRes, dataRes] = await Promise.all([
     pool.query(countSql, countParams),
     pool.query(dataSql, dataParams)
   ]);
-  
+
   return {
     total: parseInt(countRes.rows[0]?.total || 0),
     page,
@@ -374,14 +391,81 @@ async function getHourlyStats(hours = 24) {
   return rows;
 }
 
+async function searchSandwiches({ victim_to = null, is_bundle = null, profit_token = null, builder = null, startDate = null, endDate = null, page = 1, limit = 50 }) {
+  const offset = (page - 1) * limit;
+
+  const params = [];
+  let where = '1=1';
+
+  if (victim_to) {
+    params.push(String(victim_to).toLowerCase());
+    where += ` AND sa.victim_to = $${params.length}`;
+  }
+  if (is_bundle === true || is_bundle === false) {
+    params.push(!!is_bundle);
+    where += ` AND sa.is_bundle = $${params.length}`;
+  }
+  if (profit_token) {
+    params.push(String(profit_token).toLowerCase());
+    where += ` AND sa.profit_token = $${params.length}`;
+  }
+  if (startDate && endDate) {
+    const endDT = endDate.includes('T') ? endDate : `${endDate}T23:59:59`;
+    params.push(startDate, endDT);
+    where += ` AND sa.block_time BETWEEN $${params.length-1}::timestamp AND $${params.length}::timestamp`;
+  }
+  if (builder) {
+    params.push(builder, builder);
+    where += ` AND bo.builder_address IS NOT NULL
+               AND ((bo.builder_kind='builder' AND bo.builder_group=$${params.length-1})
+                 OR (bo.builder_kind='bribe'   AND bo.builder_bribe_name=$${params.length}))`;
+  }
+
+  params.push(limit, offset);
+
+  const sql = `
+    SELECT
+      sa.id,
+      sa.block_number,
+      sa.block_time,
+      sa.front_tx_hash,
+      sa.victim_tx_hash,
+      sa.profit_wei,
+      sa.profit_token,
+      sa.is_bundle,
+      sa.bundle_size,
+      sa.victim_to,
+      COALESCE(
+        ARRAY_REMOVE(ARRAY_AGG(sb.tx_hash ORDER BY sb.sequence NULLS LAST), NULL),
+        '{}'
+      ) AS backrun_txes,
+      CASE
+        WHEN bo.builder_kind = 'builder' THEN bo.builder_group
+        WHEN bo.builder_kind = 'bribe'   THEN bo.builder_bribe_name
+        ELSE NULL
+      END AS builder_name,
+      bo.validator_name
+    FROM public.sandwich_attack sa
+    JOIN ${TBL_OVERVIEW} bo ON bo.block_number = sa.block_number
+    LEFT JOIN public.sandwich_backrun sb ON sb.attack_id = sa.id
+    WHERE ${where}
+    GROUP BY sa.id, bo.builder_kind, bo.builder_group, bo.builder_bribe_name, bo.validator_name
+    ORDER BY sa.block_number DESC
+    LIMIT $${params.length-1} OFFSET $${params.length};
+  `;
+
+  const { rows } = await pool.query(sql, params);
+  return { success: true, data: rows, page, limit };
+}
 
 module.exports = {
   getSandwichStats,
   getRecentBlocks,
   findSandwichByTx,
-  getBlockSandwiches, 
+  getBlockSandwiches,
   getHourlyStats,
-  getBlockMeta,     
+  getBlockMeta,
   getBuilderList,
   getBuilderSandwiches,
+  searchSandwiches
 };

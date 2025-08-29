@@ -133,3 +133,15 @@ export const fetchBuilderSandwiches = async (builder, page = 1, limit = 50, star
 
   return res.json();
 };
+
+
+export const fetchSandwichSearch = async (params = {}) => {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null && v !== '') qs.append(k, String(v));
+  }
+  const url = `${API_URL}/api/sandwich/search?${qs.toString()}`;
+  const res = await authFetch(url, { method: 'GET' });
+  if (!res.ok) throw new Error('Failed to search sandwiches');
+  return res.json();
+};

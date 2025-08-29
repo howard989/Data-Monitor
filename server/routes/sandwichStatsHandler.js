@@ -8,7 +8,8 @@ const {
   getBlockSandwiches,
   getHourlyStats,
   getBuilderList,
-  getBuilderSandwiches
+  getBuilderSandwiches,
+  searchSandwiches,
 } = require('../postgsql/query');
 
 
@@ -124,5 +125,38 @@ router.get('/builder-sandwiches', authMiddleware, async (req, res) => {
     res.status(500).json({ success: false, error: 'Failed to fetch builder sandwiches' });
   }
 });
+
+
+router.get('/search', authMiddleware, async (req, res) => {
+  try {
+    const {
+      victim_to,
+      is_bundle,
+      profit_token,
+      builder,
+      startDate,
+      endDate,
+      page = '1',
+      limit = '50',
+    } = req.query;
+
+    const result = await searchSandwiches({
+      victim_to: victim_to || null,
+      is_bundle: (is_bundle === 'true') ? true : (is_bundle === 'false' ? false : null),
+      profit_token: profit_token || null,
+      builder: builder || null,
+      startDate: startDate || null,
+      endDate: endDate || null,
+      page: Math.max(1, parseInt(page)),
+      limit: Math.min(100, Math.max(1, parseInt(limit))),
+    });
+
+    res.json(result);
+  } catch (e) {
+    console.error('Error in /search:', e);
+    res.status(500).json({ success:false, error:'Failed to search sandwiches' });
+  }
+});
+
 
 module.exports = router;

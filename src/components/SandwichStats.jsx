@@ -2,7 +2,8 @@ import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { authFetch, API_URL } from '../data/apiClient';
-import { fetchAttackByTx, fetchAttacksByBlock, fetchBuilderList, fetchSandwichStats, fetchBuilderSandwiches } from '../data/apiSandwichStats';
+import { fetchAttackByTx, fetchAttacksByBlock, fetchBuilderList,
+  fetchSandwichStats, fetchBuilderSandwiches, fetchSandwichSearch } from '../data/apiSandwichStats';
 
 
 
@@ -15,6 +16,7 @@ const SandwichStats = () => {
 
   const { authToken, logout } = useContext(AuthContext);
   const navigate = useNavigate();
+
 
 
 
@@ -49,6 +51,36 @@ const SandwichStats = () => {
 
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const [builderDateRange, setBuilderDateRange] = useState({ start: '', end: '' });
+
+
+  const [filterVictimTo, setFilterVictimTo] = useState('');
+  const [filterIsBundle, setFilterIsBundle] = useState('');
+  const [filterProfitToken, setFilterProfitToken] = useState('');
+  const [searchDateRange, setSearchDateRange] = useState({ start: '', end: '' });
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchPage, setSearchPage] = useState(1);
+  const [searchLimit] = useState(50);
+
+
+  const short = (addr) => (addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : '-');
+
+  const formatWei = (weiStr, decimals = 18, digits = 6) => {
+    if (!weiStr) return '0';
+    try {
+      const bi = BigInt(weiStr);
+      const base = BigInt(10) ** BigInt(decimals);
+      const int = bi / base;
+      let frac = (bi % base).toString().padStart(decimals, '0').slice(0, digits);
+      frac = frac.replace(/0+$/, '');
+      return frac.length ? `${int.toString()}.${frac}` : int.toString();
+    } catch {
+      const n = parseFloat(weiStr);
+      if (!isFinite(n)) return '0';
+      return (n / 1e18).toFixed(digits);
+    }
+  };
+
 
 
   const loadBuilders = async () => {
@@ -199,6 +231,41 @@ const SandwichStats = () => {
     setBlockError('');
     setBlockSearched(false);
   };
+
+  const runSearch = async (page = 1) => {
+    setSearchLoading(true);
+    try {
+      const params = { page, limit: searchLimit };
+      if (filterVictimTo) params.victim_to = filterVictimTo.trim().toLowerCase();
+      if (filterIsBundle !== '') params.is_bundle = filterIsBundle;
+      if (filterProfitToken) params.profit_token = filterProfitToken.trim().toLowerCase();
+      if (searchDateRange.start && searchDateRange.end) {
+        params.startDate = searchDateRange.start;
+        params.endDate = searchDateRange.end;
+      }
+      if (selectedBuilder) params.builder = selectedBuilder;
+
+      const res = await fetchSandwichSearch(params);
+      setSearchResults(res.data || []);
+      setSearchPage(res.page || page);
+    } catch (e) {
+      console.error('Search failed', e);
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const clearSearch = () => {
+    setFilterVictimTo('');
+    setFilterIsBundle('');
+    setFilterProfitToken('');
+    setSearchDateRange({ start: '', end: '' });
+    setSearchResults([]);
+    setSearchPage(1);
+  };
+
+
 
   useEffect(() => {
     if (!authToken) {
@@ -448,6 +515,142 @@ const SandwichStats = () => {
             </div>
           )}
         </div>
+
+
+
+
+        {/* Advanced Search (victim_to / bundle / profit_token / date) */}
+        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-lg mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Filter Sandwiches</h2>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div>
+              <label className="text-gray-600 text-sm">Victim Router (tx.to)</label>
+              <input
+                value={filterVictimTo}
+                onChange={(e) => setFilterVictimTo(e.target.value)}
+                placeholder="0x..."
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
+            </div>
+            <div>
+              <label className="text-gray-600 text-sm">Bundle</label>
+              <select
+                value={filterIsBundle}
+                onChange={(e) => setFilterIsBundle(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
+              >
+                <option value="">All</option>
+                <option value="true">Bundle only</option>
+                <option value="false">Non-bundle only</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-gray-600 text-sm">Profit Token</label>
+              <input
+                value={filterProfitToken}
+                onChange={(e) => setFilterProfitToken(e.target.value)}
+                placeholder="0xbb4c... (WBNB)"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
+            </div>
+            <div className="flex items-end gap-2">
+              <button
+                onClick={() => runSearch(1)}
+                className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 font-medium hover:from-yellow-400 hover:to-amber-500 transition-all shadow-md hover:shadow-lg"
+              >
+                {searchLoading ? 'Searching...' : 'Search'}
+              </button>
+              <button
+                onClick={clearSearch}
+                className="px-4 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 transition-all"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 mt-3">
+            <label className="text-gray-600 text-sm">Date Range:</label>
+            <input
+              type="date"
+              value={searchDateRange.start}
+              onChange={(e) => setSearchDateRange({ ...searchDateRange, start: e.target.value })}
+              className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            />
+            <span className="text-gray-500">to</span>
+            <input
+              type="date"
+              value={searchDateRange.end}
+              onChange={(e) => setSearchDateRange({ ...searchDateRange, end: e.target.value })}
+              className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            />
+          </div>
+
+          {searchResults.length > 0 && (
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Block</th>
+                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Profit (WBNB)</th>
+                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Type</th>
+                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Victim Router</th>
+                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Front</th>
+                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Victim</th>
+                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Backruns</th>
+                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Builder</th>
+                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Validator</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {searchResults.map((r) => (
+                    <tr key={r.id} className="border-b border-gray-100 hover:bg-amber-50 transition-colors">
+                      <td className="py-2 px-3 font-mono text-amber-600 font-semibold">#{r.block_number}</td>
+                      <td className="py-2 px-3 font-mono text-gray-800">
+                        {formatWei(r.profit_wei)} <span className="text-gray-500">{short(r.profit_token)}</span>
+                      </td>
+                      <td className="py-2 px-3">
+                        {r.is_bundle ? (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                            bundle{r.bundle_size ? ` (${r.bundle_size})` : ''}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                            non-bundle
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2 px-3 font-mono text-xs">{short(r.victim_to)}</td>
+                      <td className="py-2 px-3 font-mono text-xs">{short(r.front_tx_hash)}</td>
+                      <td className="py-2 px-3 font-mono text-xs">{short(r.victim_tx_hash)}</td>
+                      <td className="py-2 px-3">
+                        <div className="flex flex-col gap-1">
+                          {r.backrun_txes?.slice(0, 2).map((h, i) => (
+                            <a
+                              key={h}
+                              href={`https://bscscan.com/tx/${h}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-mono text-xs text-gray-500 hover:text-gray-700 hover:underline"
+                            >
+                              {i + 1}. {short(h)}
+                            </a>
+                          ))}
+                          {r.backrun_txes?.length > 2 && (
+                            <span className="text-xs text-gray-400">+{r.backrun_txes.length - 2} more</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-2 px-3 text-gray-700">{r.builder_name || '-'}</td>
+                      <td className="py-2 px-3 text-gray-700">{r.validator_name || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
 
 
 
