@@ -31,7 +31,17 @@ async function getBuilderList() {
   return rows.filter(r => r.builder_name).map(r => r.builder_name);
 }
 
-async function getSandwichStats(builderName = null) {
+async function getSandwichStats(builderName = null, startDate = null, endDate = null) {
+
+  let dateFilter = '';
+  const params = [];
+  let paramIndex = 1;
+
+  if (startDate && endDate) {
+    dateFilter = ` AND block_time >= $${paramIndex}::timestamp AND block_time <= $${paramIndex + 1}::timestamp`;
+    params.push(startDate, endDate);
+    paramIndex += 2;
+  }
 
   if (builderName) {
     const sql = `
@@ -40,9 +50,10 @@ async function getSandwichStats(builderName = null) {
         FROM ${TBL_OVERVIEW}
         WHERE builder_address IS NOT NULL
           AND (
-            (builder_kind='builder' AND builder_group = $1) OR
-            (builder_kind='bribe'   AND builder_bribe_name = $1)
+            (builder_kind='builder' AND builder_group = $${paramIndex}) OR
+            (builder_kind='bribe'   AND builder_bribe_name = $${paramIndex})
           )
+          ${dateFilter}
       )
       SELECT
         COUNT(*)::bigint AS total_blocks,
@@ -51,7 +62,8 @@ async function getSandwichStats(builderName = null) {
         MAX(block_number) AS latest_block
       FROM f;
     `;
-    const { rows } = await pool.query(sql, [builderName]);
+    params.push(builderName);
+    const { rows } = await pool.query(sql, params);
     const r = rows[0] || {};
     const total = Number(r.total_blocks || 0);
     const sand  = Number(r.sandwich_blocks || 0);
@@ -63,6 +75,7 @@ async function getSandwichStats(builderName = null) {
       sandwich_percentage: total ? Number((100 * sand / total).toFixed(6)) : 0,
       earliest_block: Number(r.earliest_block || 0),
       latest_block: Number(r.latest_block || 0),
+      date_range: startDate && endDate ? { start: startDate, end: endDate } : null,
     };
   }
 
@@ -74,7 +87,8 @@ async function getSandwichStats(builderName = null) {
       COUNT(*) FILTER (WHERE has_sandwich AND builder_address IS NOT NULL)::bigint AS sandwich_builder_blocks,
       MIN(block_number) AS earliest_block,
       MAX(block_number) AS latest_block
-    FROM ${TBL_OVERVIEW};
+    FROM ${TBL_OVERVIEW}
+    WHERE 1=1 ${dateFilter};
   `;
 
   const breakdownSql = `
@@ -88,13 +102,16 @@ async function getSandwichStats(builderName = null) {
       COUNT(*)::bigint AS blocks,
       COUNT(*) FILTER (WHERE has_sandwich)::bigint AS sandwich_blocks
     FROM ${TBL_OVERVIEW}
-    WHERE builder_address IS NOT NULL
+    WHERE builder_address IS NOT NULL ${dateFilter}
     GROUP BY 1,2
     ORDER BY (CASE WHEN COUNT(*) > 0 THEN 100.0 * COUNT(*) FILTER (WHERE has_sandwich) / COUNT(*) ELSE 0 END) DESC, blocks DESC
     LIMIT 100;
   `;
 
-  const [baseRes, brkRes] = await Promise.all([pool.query(baseSql), pool.query(breakdownSql)]);
+  const [baseRes, brkRes] = await Promise.all([
+    pool.query(baseSql, params),
+    pool.query(breakdownSql, params)
+  ]);
   const b = baseRes.rows[0] || {};
   const breakdown = (brkRes.rows || []).map(r => ({
     builder_name: r.builder_name,
@@ -120,6 +137,7 @@ async function getSandwichStats(builderName = null) {
     sandwich_builder_blocks,
     sandwich_percentage_on_builder: builder_blocks ? Number((100 * sandwich_builder_blocks / builder_blocks).toFixed(6)) : 0,
     breakdown_by_builder: breakdown,
+    date_range: startDate && endDate ? { start: startDate, end: endDate } : null,
   };
 }
 
@@ -240,8 +258,19 @@ async function getBlockSandwiches(blockNumber) {
 }
 
 
-async function getBuilderSandwiches(builderName, page = 1, limit = 50) {
+async function getBuilderSandwiches(builderName, page = 1, limit = 50, startDate = null, endDate = null) {
   const offset = (page - 1) * limit;
+  
+  
+  let dateFilter = '';
+  const countParams = [builderName];
+  const dataParams = [builderName];
+  
+  if (startDate && endDate) {
+    dateFilter = ' AND sa.block_time >= $2::timestamp AND sa.block_time <= $3::timestamp';
+    countParams.push(startDate, endDate);
+    dataParams.push(startDate, endDate);
+  }
   
   const countSql = `
     SELECT COUNT(DISTINCT sa.id) as total
@@ -251,8 +280,14 @@ async function getBuilderSandwiches(builderName, page = 1, limit = 50) {
       AND (
         (bo.builder_kind = 'builder' AND bo.builder_group = $1) OR
         (bo.builder_kind = 'bribe' AND bo.builder_bribe_name = $1)
-      );
+      )
+      ${dateFilter};
   `;
+  
+  
+  const limitParam = startDate && endDate ? '$4' : '$2';
+  const offsetParam = startDate && endDate ? '$5' : '$3';
+  dataParams.push(limit, offset);
   
   const dataSql = `
     SELECT
@@ -278,14 +313,15 @@ async function getBuilderSandwiches(builderName, page = 1, limit = 50) {
         (bo.builder_kind = 'builder' AND bo.builder_group = $1) OR
         (bo.builder_kind = 'bribe' AND bo.builder_bribe_name = $1)
       )
+      ${dateFilter}
     GROUP BY sa.id, bo.builder_kind, bo.builder_group, bo.builder_bribe_name, bo.validator_name
     ORDER BY sa.block_number DESC
-    LIMIT $2 OFFSET $3;
+    LIMIT ${limitParam} OFFSET ${offsetParam};
   `;
   
   const [countRes, dataRes] = await Promise.all([
-    pool.query(countSql, [builderName]),
-    pool.query(dataSql, [builderName, limit, offset])
+    pool.query(countSql, countParams),
+    pool.query(dataSql, dataParams)
   ]);
   
   return {

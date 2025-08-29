@@ -100,11 +100,14 @@ export const fetchBuilderList = async () => {
 
   return res.json(); 
 };
-
-export const fetchSandwichStats = async (builderName) => {
-  const url = builderName
+export const fetchSandwichStats = async (builderName, startDate = null, endDate = null) => {
+  let url = builderName
     ? `${API_URL}/api/sandwich/stats?builder=${encodeURIComponent(builderName)}`
     : `${API_URL}/api/sandwich/stats`;
+  
+  if (startDate && endDate) {
+    url += `${url.includes('?') ? '&' : '?'}startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`;
+  }
 
   const res = await authFetch(url, { method: 'GET' });
 
@@ -115,8 +118,13 @@ export const fetchSandwichStats = async (builderName) => {
   return res.json(); 
 };
 
-export const fetchBuilderSandwiches = async (builder, page = 1, limit = 50) => {
-  const url = `${API_URL}/api/sandwich/builder-sandwiches?builder=${encodeURIComponent(builder)}&page=${page}&limit=${limit}`;
+export const fetchBuilderSandwiches = async (builder, page = 1, limit = 50, startDate = null, endDate = null) => {
+  let url = `${API_URL}/api/sandwich/builder-sandwiches?builder=${encodeURIComponent(builder)}&page=${page}&limit=${limit}`;
+  
+  if (startDate && endDate) {
+    url += `&startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`;
+  }
+  
   const res = await authFetch(url, { method: 'GET' });
 
   if (!res.ok) {

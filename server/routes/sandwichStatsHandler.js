@@ -15,9 +15,15 @@ const {
 router.get('/stats', authMiddleware, async (req, res) => {
   try {
     const builder = req.query.builder ? String(req.query.builder) : null;
-    const stats = await getSandwichStats(builder);
+    const startDate = req.query.startDate ? String(req.query.startDate) : null;
+    const endDate = req.query.endDate ? String(req.query.endDate) : null;
     
-    res.set('Cache-Control', 'private, max-age=6, stale-while-revalidate=30');
+    const stats = await getSandwichStats(builder, startDate, endDate);
+    
+    
+    if (!startDate && !endDate) {
+      res.set('Cache-Control', 'private, max-age=6, stale-while-revalidate=30');
+    }
     
     res.json({
       success: true,
@@ -103,13 +109,15 @@ router.get('/builder-sandwiches', authMiddleware, async (req, res) => {
   try {
     const builder = req.query.builder;
     const page = parseInt(req.query.page) || 1;
-    const limit = Math.min(parseInt(req.query.limit) || 50, 100); 
+    const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+    const startDate = req.query.startDate ? String(req.query.startDate) : null;
+    const endDate = req.query.endDate ? String(req.query.endDate) : null;
     
     if (!builder) {
       return res.status(400).json({ success: false, error: 'Builder name is required' });
     }
     
-    const result = await getBuilderSandwiches(builder, page, limit);
+    const result = await getBuilderSandwiches(builder, page, limit, startDate, endDate);
     res.json({ success: true, ...result });
   } catch (e) {
     console.error('Error in /builder-sandwiches:', e);

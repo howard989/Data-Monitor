@@ -45,6 +45,10 @@ const SandwichStats = () => {
   const [builderTotal, setBuilderTotal] = useState(0);
   const [builderTotalPages, setBuilderTotalPages] = useState(0);
   const [builderLoading, setBuilderLoading] = useState(false);
+  
+
+  const [dateRange, setDateRange] = useState({ start: '', end: '' });
+  const [builderDateRange, setBuilderDateRange] = useState({ start: '', end: '' });
 
 
   const loadBuilders = async () => {
@@ -52,15 +56,15 @@ const SandwichStats = () => {
     setBuilders(data || []);
   };
 
-  const loadBuilderStats = async (name) => {
-    const { data } = await fetchSandwichStats(name || null);
+  const loadBuilderStats = async (name, startDate = null, endDate = null) => {
+    const { data } = await fetchSandwichStats(name || null, startDate, endDate);
     setBuilderStats(data || null);
   };
 
-  const loadBuilderSandwiches = async (builder, page) => {
+  const loadBuilderSandwiches = async (builder, page, startDate = null, endDate = null) => {
     setBuilderLoading(true);
     try {
-      const result = await fetchBuilderSandwiches(builder, page, 50);
+      const result = await fetchBuilderSandwiches(builder, page, 50, startDate, endDate);
       if (result.success) {
         setBuilderSandwiches(result.data || []);
         setBuilderTotal(result.total || 0);
@@ -81,9 +85,14 @@ const SandwichStats = () => {
     navigate('/login');
   };
 
-  const fetchStats = async () => {
+  const fetchStats = async (startDate = null, endDate = null) => {
     try {
-      const statsRes = await authFetch(`${API_URL}/api/sandwich/stats`, {
+      let url = `${API_URL}/api/sandwich/stats`;
+      if (startDate && endDate) {
+        url += `?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`;
+      }
+      
+      const statsRes = await authFetch(url, {
         method: 'GET'
       });
 
@@ -187,11 +196,12 @@ const SandwichStats = () => {
       return;
     }
 
-    fetchStats();
+
+    fetchStats(dateRange.start, dateRange.end);
     fetchBlocks();
 
     const statsInterval = setInterval(() => {
-      fetchStats();
+      fetchStats(dateRange.start, dateRange.end);
     }, 5000);
 
     const blocksInterval = setInterval(() => {
@@ -202,7 +212,7 @@ const SandwichStats = () => {
       clearInterval(statsInterval);
       clearInterval(blocksInterval);
     };
-  }, [authToken]);
+  }, [authToken, dateRange.start, dateRange.end]); 
 
 
 
@@ -214,11 +224,11 @@ const SandwichStats = () => {
   useEffect(() => {
     if (!authToken) return;
     if (selectedBuilder) {
-      loadBuilderStats(selectedBuilder);
+      loadBuilderStats(selectedBuilder, dateRange.start, dateRange.end);
     } else {
       setBuilderStats(null);
     }
-  }, [selectedBuilder, authToken]);
+  }, [selectedBuilder, authToken, dateRange.start, dateRange.end]); 
 
   const formatNumber = (num) => {
     return new Intl.NumberFormat('en-US').format(num);
@@ -317,11 +327,56 @@ const SandwichStats = () => {
                 onClick={() => {
                   setShowBuilderDetails(true);
                   setBuilderPage(1);
-                  loadBuilderSandwiches(selectedBuilder, 1);
+                  loadBuilderSandwiches(selectedBuilder, 1, builderDateRange.start, builderDateRange.end);
                 }}
                 className="px-4 py-2 rounded-lg bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 font-medium hover:from-yellow-400 hover:to-amber-500 transition-all shadow-md hover:shadow-lg"
               >
                 View Details
+              </button>
+            )}
+          </div>
+          
+          {/* Date Range Filter */}
+          <div className="flex items-center gap-3 mt-4">
+            <label className="text-gray-600">Date Range:</label>
+            <input
+              type="date"
+              value={dateRange.start}
+              onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+              className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            />
+            <span className="text-gray-500">to</span>
+            <input
+              type="date"
+              value={dateRange.end}
+              onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+              className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            />
+            <button
+              onClick={() => {
+                if (dateRange.start && dateRange.end) {
+                  fetchStats(dateRange.start, dateRange.end);
+                  if (selectedBuilder) {
+                    loadBuilderStats(selectedBuilder, dateRange.start, dateRange.end);
+                  }
+                }
+              }}
+              className="px-4 py-2 rounded-lg bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 font-medium hover:from-yellow-400 hover:to-amber-500 transition-all shadow-md hover:shadow-lg"
+            >
+              Apply
+            </button>
+            {(dateRange.start || dateRange.end) && (
+              <button
+                onClick={() => {
+                  setDateRange({ start: '', end: '' });
+                  fetchStats();
+                  if (selectedBuilder) {
+                    loadBuilderStats(selectedBuilder);
+                  }
+                }}
+                className="px-4 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 transition-all"
+              >
+                Clear
               </button>
             )}
           </div>
@@ -627,6 +682,52 @@ const SandwichStats = () => {
                 </div>
                 <div className="mt-2 text-sm text-gray-600">
                   Total: {formatNumber(builderTotal)} attacks
+                  {builderDateRange.start && builderDateRange.end && (
+                    <span className="ml-2">
+                      ({builderDateRange.start} to {builderDateRange.end})
+                    </span>
+                  )}
+                </div>
+                
+                {/* Date filter for builder details */}
+                <div className="flex items-center gap-3 mt-4">
+                  <label className="text-sm text-gray-600">Date Range:</label>
+                  <input
+                    type="date"
+                    value={builderDateRange.start}
+                    onChange={(e) => setBuilderDateRange({ ...builderDateRange, start: e.target.value })}
+                    className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                  <span className="text-sm text-gray-500">to</span>
+                  <input
+                    type="date"
+                    value={builderDateRange.end}
+                    onChange={(e) => setBuilderDateRange({ ...builderDateRange, end: e.target.value })}
+                    className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                  <button
+                    onClick={() => {
+                      if (builderDateRange.start && builderDateRange.end) {
+                        setBuilderPage(1);
+                        loadBuilderSandwiches(selectedBuilder, 1, builderDateRange.start, builderDateRange.end);
+                      }
+                    }}
+                    className="text-sm px-3 py-1 rounded bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 font-medium hover:from-yellow-400 hover:to-amber-500 shadow-md hover:shadow-lg"
+                  >
+                    Apply
+                  </button>
+                  {(builderDateRange.start || builderDateRange.end) && (
+                    <button
+                      onClick={() => {
+                        setBuilderDateRange({ start: '', end: '' });
+                        setBuilderPage(1);
+                        loadBuilderSandwiches(selectedBuilder, 1);
+                      }}
+                      className="text-sm px-3 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
+                    >
+                      Clear
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -731,7 +832,7 @@ const SandwichStats = () => {
                               if (e.key === 'Enter') {
                                 const page = parseInt(e.target.value);
                                 if (page >= 1 && page <= builderTotalPages) {
-                                  loadBuilderSandwiches(selectedBuilder, page);
+                                  loadBuilderSandwiches(selectedBuilder, page, builderDateRange.start, builderDateRange.end);
                                 }
                               }
                             }}
@@ -741,7 +842,7 @@ const SandwichStats = () => {
                       </div>
                       <div className="flex gap-2">
                         <button
-                          onClick={() => loadBuilderSandwiches(selectedBuilder, builderPage - 1)}
+                          onClick={() => loadBuilderSandwiches(selectedBuilder, builderPage - 1, builderDateRange.start, builderDateRange.end)}
                           disabled={builderPage <= 1}
                           className={`px-4 py-2 rounded-lg font-medium transition-all ${
                             builderPage <= 1
@@ -752,7 +853,7 @@ const SandwichStats = () => {
                           Previous
                         </button>
                         <button
-                          onClick={() => loadBuilderSandwiches(selectedBuilder, builderPage + 1)}
+                          onClick={() => loadBuilderSandwiches(selectedBuilder, builderPage + 1, builderDateRange.start, builderDateRange.end)}
                           disabled={builderPage >= builderTotalPages}
                           className={`px-4 py-2 rounded-lg font-medium transition-all ${
                             builderPage >= builderTotalPages
