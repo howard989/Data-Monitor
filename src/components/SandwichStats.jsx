@@ -351,7 +351,7 @@ const SandwichStats = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {stats.breakdown_by_builder.slice(0, 5).map((b, idx) => (
+                        {stats.breakdown_by_builder.slice(0, 10).map((b, idx) => (
                           <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50">
                             <td className="py-2 px-2 text-gray-700">{b.builder_name || '-'}</td>
                             <td className="py-2 px-2 text-gray-700">{formatNumber(b.blocks)}</td>
