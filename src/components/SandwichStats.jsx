@@ -405,7 +405,7 @@ const SandwichStats = () => {
               {/* Top builders table */}
               {Array.isArray(stats.breakdown_by_builder) && stats.breakdown_by_builder.length > 0 && (
                 <div className="mt-4">
-                  <div className="text-sm text-gray-600 mb-2">Top Builders</div>
+                  <div className="text-sm text-gray-600 mb-2">Builders by Sandwich Rate (High to Low)</div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
