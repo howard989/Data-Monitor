@@ -605,9 +605,26 @@ const SandwichStats = () => {
                 <tbody>
                   {searchResults.map((r) => (
                     <tr key={r.id} className="border-b border-gray-100 hover:bg-amber-50 transition-colors">
-                      <td className="py-2 px-3 font-mono text-amber-600 font-semibold">#{r.block_number}</td>
+                      <td className="py-2 px-3">
+                        <a 
+                          href={`https://bscscan.com/block/${r.block_number}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-mono text-amber-600 font-semibold hover:text-amber-700 hover:underline"
+                        >
+                          #{r.block_number}
+                        </a>
+                      </td>
                       <td className="py-2 px-3 font-mono text-gray-800">
-                        {formatWei(r.profit_wei)} <span className="text-gray-500">{short(r.profit_token)}</span>
+                        {formatWei(r.profit_wei)}{' '}
+                        <a
+                          href={`https://bscscan.com/token/${r.profit_token}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-gray-500 hover:text-gray-700 hover:underline"
+                        >
+                          {short(r.profit_token)}
+                        </a>
                       </td>
                       <td className="py-2 px-3">
                         {r.is_bundle ? (
