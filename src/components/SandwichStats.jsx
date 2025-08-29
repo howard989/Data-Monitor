@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { authFetch, API_URL } from '../data/apiClient';
-import { fetchAttackByTx, fetchAttacksByBlock, fetchBuilderList, fetchSandwichStats } from '../data/apiSandwichStats';
+import { fetchAttackByTx, fetchAttacksByBlock, fetchBuilderList, fetchSandwichStats, fetchBuilderSandwiches } from '../data/apiSandwichStats';
 
 
 
@@ -21,9 +21,11 @@ const SandwichStats = () => {
   const [txQuery, setTxQuery] = useState('');
   const [txResults, setTxResults] = useState([]);
   const [txLoading, setTxLoading] = useState(false);
+  const [txSearched, setTxSearched] = useState(false);
 
   const [blockQuery, setBlockQuery] = useState('');
   const [blockResults, setBlockResults] = useState([]);
+  const [blockSearched, setBlockSearched] = useState(false);
   const [blockLoading, setBlockLoading] = useState(false);
   const [blockError, setBlockError] = useState('');
 
@@ -33,20 +35,45 @@ const SandwichStats = () => {
 
 
 
-const [builders, setBuilders] = useState([]);
-const [selectedBuilder, setSelectedBuilder] = useState('');
-const [builderStats, setBuilderStats] = useState(null);
+  const [builders, setBuilders] = useState([]);
+  const [selectedBuilder, setSelectedBuilder] = useState('');
+  const [builderStats, setBuilderStats] = useState(null);
+  
+  const [showBuilderDetails, setShowBuilderDetails] = useState(false);
+  const [builderSandwiches, setBuilderSandwiches] = useState([]);
+  const [builderPage, setBuilderPage] = useState(1);
+  const [builderTotal, setBuilderTotal] = useState(0);
+  const [builderTotalPages, setBuilderTotalPages] = useState(0);
+  const [builderLoading, setBuilderLoading] = useState(false);
 
 
-const loadBuilders = async () => {
-  const { data } = await fetchBuilderList();
-  setBuilders(data || []);
-};
+  const loadBuilders = async () => {
+    const { data } = await fetchBuilderList();
+    setBuilders(data || []);
+  };
 
-const loadBuilderStats = async (name) => {
-  const { data } = await fetchSandwichStats(name || null);
-  setBuilderStats(data || null);
-};
+  const loadBuilderStats = async (name) => {
+    const { data } = await fetchSandwichStats(name || null);
+    setBuilderStats(data || null);
+  };
+
+  const loadBuilderSandwiches = async (builder, page) => {
+    setBuilderLoading(true);
+    try {
+      const result = await fetchBuilderSandwiches(builder, page, 50);
+      if (result.success) {
+        setBuilderSandwiches(result.data || []);
+        setBuilderTotal(result.total || 0);
+        setBuilderTotalPages(result.totalPages || 0);
+        setBuilderPage(page);
+      }
+    } catch (error) {
+      console.error('Error loading builder sandwiches:', error);
+      setBuilderSandwiches([]);
+    } finally {
+      setBuilderLoading(false);
+    }
+  };
 
 
   const handleUnauthorized = () => {
@@ -55,7 +82,6 @@ const loadBuilderStats = async (name) => {
   };
 
   const fetchStats = async () => {
-    // setStats(null);
     try {
       const statsRes = await authFetch(`${API_URL}/api/sandwich/stats`, {
         method: 'GET'
@@ -81,7 +107,6 @@ const loadBuilderStats = async (name) => {
   };
 
   const fetchBlocks = async () => {
-    // setRecentBlocks([]);
     try {
       const blocksRes = await authFetch(`${API_URL}/api/sandwich/recent?limit=20`, {
         method: 'GET'
@@ -108,6 +133,7 @@ const loadBuilderStats = async (name) => {
   const onSearchTx = async () => {
     if (!txQuery) return;
     setTxLoading(true);
+    setTxSearched(true);
     try {
       const { data } = await fetchAttackByTx(txQuery.trim());
       setTxResults(data || []);
@@ -118,9 +144,16 @@ const loadBuilderStats = async (name) => {
     }
   };
 
+  const onClearTx = () => {
+    setTxQuery('');
+    setTxResults([]);
+    setTxSearched(false);
+  };
+
   const onSearchBlock = async () => {
     if (!blockQuery) return;
     setBlockLoading(true);
+    setBlockSearched(true);
     setBlockError('');
     setBlockMeta(null);
     setBlockClean(false);
@@ -130,9 +163,6 @@ const loadBuilderStats = async (name) => {
       setBlockResults(data || []);
       setBlockMeta(meta || null);
       setBlockClean(!!is_clean);
-      if (!data || data.length === 0) {
-        setBlockError('This block is clean');
-      }
     } catch (e) {
       setBlockResults([]);
       setBlockMeta(null);
@@ -140,6 +170,15 @@ const loadBuilderStats = async (name) => {
     } finally {
       setBlockLoading(false);
     }
+  };
+
+  const onClearBlock = () => {
+    setBlockQuery('');
+    setBlockResults([]);
+    setBlockMeta(null);
+    setBlockClean(false);
+    setBlockError('');
+    setBlockSearched(false);
   };
 
   useEffect(() => {
@@ -171,7 +210,7 @@ const loadBuilderStats = async (name) => {
     if (!authToken) return;
     loadBuilders();
   }, [authToken]);
-  
+
   useEffect(() => {
     if (!authToken) return;
     if (selectedBuilder) {
@@ -191,18 +230,18 @@ const loadBuilderStats = async (name) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white flex items-center justify-center">
         <div className="text-xl text-gray-600">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white p-8">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white p-8">
       <div className="max-w-7xl mx-auto">
 
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-yellow-600 to-amber-500 bg-clip-text text-transparent mb-2">
             MEV Sandwich Attack Monitor
           </h1>
 
@@ -212,96 +251,22 @@ const loadBuilderStats = async (name) => {
         </div>
 
 
-        <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl p-8 mb-8 text-white shadow-xl">
+        <div className="bg-gradient-to-r from-yellow-100 to-amber-200 rounded-2xl p-8 mb-8 shadow-xl">
           <div className="text-center">
-            <h2 className="text-2xl font-semibold mb-4">Sandwich Attack Rate</h2>
-            <div className="text-6xl font-bold mb-2">
+            <h2 className="text-2xl font-semibold mb-4 text-gray-800">Sandwich Attack Rate</h2>
+            <div className="text-6xl font-bold mb-2 text-gray-900">
               {stats && stats.sandwich_percentage ? formatPercentage(stats.sandwich_percentage) : '0%'}
             </div>
-            <div className="text-lg opacity-90">
+            <div className="text-lg text-gray-700">
               {stats && stats.sandwich_blocks ? formatNumber(stats.sandwich_blocks) : '0'} / {stats && stats.total_blocks ? formatNumber(stats.total_blocks) : '0'} blocks
             </div>
           </div>
         </div>
 
 
-        {/* Builder Filter */}
-<div className="bg-white border border-gray-200 rounded-xl p-6 shadow-lg mb-8">
-  <div className="flex items-center gap-3 mb-4">
-    <label className="text-gray-600">Filter by Builder:</label>
-    <select
-      value={selectedBuilder}
-      onChange={(e) => setSelectedBuilder(e.target.value)}
-      className="border rounded-lg px-3 py-2"
-    >
-      <option value="">All Builders (global)</option>
-      {builders.map((b) => (
-        <option key={b} value={b}>{b}</option>
-      ))}
-    </select>
-  </div>
-
-  {!selectedBuilder && stats && (
-    <div className="text-sm text-gray-600">
-      <div className="mb-2">Sandwich on Builder Blocks</div>
-      <div className="text-3xl font-bold text-gray-900">
-        {stats.sandwich_percentage_on_builder?.toFixed(4)}%
-      </div>
-      <div className="text-xs text-gray-400 mt-2">
-        {`${formatNumber(stats.sandwich_builder_blocks)} / ${formatNumber(stats.builder_blocks)} blocks`}
-      </div>
-
-      {/* 可选：Top builders 小表 */}
-      {Array.isArray(stats.breakdown_by_builder) && stats.breakdown_by_builder.length > 0 && (
-        <div className="mt-4">
-          <div className="text-sm text-gray-600 mb-2">Top Builders</div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-2 px-2">Builder</th>
-                  <th className="text-left py-2 px-2">Blocks</th>
-                  <th className="text-left py-2 px-2">Sandwich</th>
-                  <th className="text-left py-2 px-2">Rate</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.breakdown_by_builder.slice(0, 5).map((b, idx) => (
-                  <tr key={idx} className="border-b">
-                    <td className="py-2 px-2">{b.builder_name || '-'}</td>
-                    <td className="py-2 px-2">{formatNumber(b.blocks)}</td>
-                    <td className="py-2 px-2">{formatNumber(b.sandwich_blocks)}</td>
-                    <td className="py-2 px-2">{b.sandwich_percentage.toFixed(4)}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-    </div>
-  )}
-
-  {selectedBuilder && builderStats && (
-    <div className="text-sm text-gray-600">
-      <div className="mb-2">Sandwich Rate for <span className="font-semibold">{selectedBuilder}</span></div>
-      <div className="text-3xl font-bold text-gray-900">
-        {builderStats.sandwich_percentage?.toFixed(4)}%
-      </div>
-      <div className="text-xs text-gray-400 mt-2">
-        {`${formatNumber(builderStats.sandwich_blocks)} / ${formatNumber(builderStats.total_blocks)} blocks`}
-      </div>
-      <div className="text-xs text-gray-400 mt-1">
-        Blocks #{builderStats.earliest_block || 0} to #{builderStats.latest_block || 0}
-      </div>
-    </div>
-  )}
-</div>
-
-
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-lg">
+          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow">
             <div className="text-gray-500 text-sm mb-2">Total Blocks Analyzed</div>
             <div className="text-3xl font-bold text-gray-900">
               {stats ? formatNumber(stats.total_blocks) : '0'}
@@ -311,7 +276,7 @@ const loadBuilderStats = async (name) => {
             </div>
           </div>
 
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-lg">
+          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow">
             <div className="text-gray-500 text-sm mb-2">Blocks with Sandwich</div>
             <div className="text-3xl font-bold text-red-600">
               {stats ? formatNumber(stats.sandwich_blocks) : '0'}
@@ -321,9 +286,9 @@ const loadBuilderStats = async (name) => {
             </div>
           </div>
 
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-lg">
+          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow">
             <div className="text-gray-500 text-sm mb-2">Latest Block</div>
-            <div className="text-3xl font-bold text-blue-600">
+            <div className="text-3xl font-bold text-amber-600">
               #{stats?.latest_block || 0}
             </div>
             <div className="text-xs text-gray-400 mt-2">
@@ -333,6 +298,95 @@ const loadBuilderStats = async (name) => {
         </div>
 
 
+        {/* Builder Filter */}
+        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-lg mb-8">
+          <div className="flex items-center gap-3 mb-4">
+            <label className="text-gray-600">Filter by Builder:</label>
+            <select
+              value={selectedBuilder}
+              onChange={(e) => setSelectedBuilder(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            >
+              <option value="">All Builders (global)</option>
+              {builders.map((b) => (
+                <option key={b} value={b}>{b}</option>
+              ))}
+            </select>
+            {selectedBuilder && (
+              <button
+                onClick={() => {
+                  setShowBuilderDetails(true);
+                  setBuilderPage(1);
+                  loadBuilderSandwiches(selectedBuilder, 1);
+                }}
+                className="px-4 py-2 rounded-lg bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 font-medium hover:from-yellow-400 hover:to-amber-500 transition-all shadow-md hover:shadow-lg"
+              >
+                View Details
+              </button>
+            )}
+          </div>
+
+          {!selectedBuilder && stats && (
+            <div className="text-sm text-gray-600">
+              <div className="mb-2">Sandwich on Builder Blocks</div>
+              <div className="text-3xl font-bold text-gray-900">
+                {stats.sandwich_percentage_on_builder?.toFixed(4)}%
+              </div>
+              <div className="text-xs text-gray-400 mt-2">
+                {`${formatNumber(stats.sandwich_builder_blocks)} / ${formatNumber(stats.builder_blocks)} blocks`}
+              </div>
+
+              {/* Top builders table */}
+              {Array.isArray(stats.breakdown_by_builder) && stats.breakdown_by_builder.length > 0 && (
+                <div className="mt-4">
+                  <div className="text-sm text-gray-600 mb-2">Top Builders</div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-200">
+                          <th className="text-left py-2 px-2 text-gray-500">Builder</th>
+                          <th className="text-left py-2 px-2 text-gray-500">Blocks</th>
+                          <th className="text-left py-2 px-2 text-gray-500">Sandwich</th>
+                          <th className="text-left py-2 px-2 text-gray-500">Rate</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {stats.breakdown_by_builder.slice(0, 5).map((b, idx) => (
+                          <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50">
+                            <td className="py-2 px-2 text-gray-700">{b.builder_name || '-'}</td>
+                            <td className="py-2 px-2 text-gray-700">{formatNumber(b.blocks)}</td>
+                            <td className="py-2 px-2 text-gray-700">{formatNumber(b.sandwich_blocks)}</td>
+                            <td className="py-2 px-2 text-amber-600 font-semibold">{b.sandwich_percentage.toFixed(4)}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {selectedBuilder && builderStats && (
+            <div className="text-sm text-gray-600">
+              <div className="mb-2">Sandwich Rate for <span className="font-semibold text-amber-600">{selectedBuilder}</span></div>
+              <div className="text-3xl font-bold text-gray-900">
+                {builderStats.sandwich_percentage?.toFixed(4)}%
+              </div>
+              <div className="text-xs text-gray-400 mt-2">
+                {`${formatNumber(builderStats.sandwich_blocks)} / ${formatNumber(builderStats.total_blocks)} blocks`}
+              </div>
+              <div className="text-xs text-gray-400 mt-1">
+                Blocks #{builderStats.earliest_block || 0} to #{builderStats.latest_block || 0}
+              </div>
+            </div>
+          )}
+        </div>
+
+
+
+
+
         {/* Search by TX */}
         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-lg mb-8">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Search by TX Hash</h2>
@@ -340,42 +394,61 @@ const loadBuilderStats = async (name) => {
             <input
               value={txQuery}
               onChange={(e) => setTxQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  onSearchTx();
+                }
+              }}
               placeholder="0x..."
-              className="flex-1 border rounded-lg px-3 py-2 focus:outline-none focus:ring"
+              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
             />
-            <button onClick={onSearchTx} className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700">
+            <button onClick={onSearchTx} className="px-4 py-2 rounded-lg bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 font-medium hover:from-yellow-400 hover:to-amber-500 transition-all shadow-md hover:shadow-lg">
               {txLoading ? 'Searching...' : 'Search'}
             </button>
+            {txSearched && (
+              <button onClick={onClearTx} className="px-4 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 transition-all">
+                Clear
+              </button>
+            )}
           </div>
+
+          {/* Show no results message for TX search */}
+          {txSearched && !txLoading && txResults.length === 0 && (
+            <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-amber-800 text-sm">
+                This transaction is not part of a sandwich attack.
+              </p>
+            </div>
+          )}
 
           {txResults.length > 0 && (
             <div className="mt-4 overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-200">
-                    <th className="text-left py-2 px-3">Block</th>
-                    <th className="text-left py-2 px-3">Front</th>
-                    <th className="text-left py-2 px-3">Victim</th>
-                    <th className="text-left py-2 px-3">Backruns</th>
-                    <th className="text-left py-2 px-3">Builder</th>
-                    <th className="text-left py-2 px-3">Validator</th>
+                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Block</th>
+                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Front</th>
+                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Victim</th>
+                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Backruns</th>
+                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Builder</th>
+                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Validator</th>
                   </tr>
                 </thead>
                 <tbody>
                   {txResults.map((r) => (
-                    <tr key={r.id} className="border-b border-gray-100">
-                      <td className="py-2 px-3 font-mono">#{r.block_number}</td>
-                      <td className="py-2 px-3 font-mono">{r.front_tx_hash}</td>
-                      <td className="py-2 px-3 font-mono">{r.victim_tx_hash}</td>
+                    <tr key={r.id} className="border-b border-gray-100 hover:bg-amber-50 transition-colors">
+                      <td className="py-2 px-3 font-mono text-amber-600 font-semibold">#{r.block_number}</td>
+                      <td className="py-2 px-3 font-mono text-gray-600 text-xs">{r.front_tx_hash.slice(0,10)}...</td>
+                      <td className="py-2 px-3 font-mono text-gray-600 text-xs">{r.victim_tx_hash.slice(0,10)}...</td>
                       <td className="py-2 px-3">
                         <div className="flex flex-col gap-1">
                           {r.backrun_txes?.map((h, i) => (
-                            <span key={h} className="font-mono text-sm">{i + 1}. {h}</span>
+                            <span key={h} className="font-mono text-xs text-gray-500">{i + 1}. {h.slice(0,8)}...</span>
                           ))}
                         </div>
                       </td>
-                      <td className="py-2 px-3">{r.builder_name || '-'}</td>
-                      <td className="py-2 px-3">{r.validator_name || '-'}</td>
+                      <td className="py-2 px-3 text-gray-700">{r.builder_name || '-'}</td>
+                      <td className="py-2 px-3 text-gray-700">{r.validator_name || '-'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -385,14 +458,6 @@ const loadBuilderStats = async (name) => {
           )}
         </div>
 
-        {blockMeta && (
-          <div className="mt-3 text-sm text-gray-600">
-            <div>Builder: <span className="font-medium">{blockMeta.builder_name || '-'}</span></div>
-            <div>Validator: <span className="font-medium">{blockMeta.validator_name || '-'}</span></div>
-          </div>
-        )}
-        {blockError && <div className="text-red-600 text-sm mt-2">{blockError}</div>}
-
         {/* Search by Block */}
         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-lg mb-8">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Search by Block</h2>
@@ -400,13 +465,53 @@ const loadBuilderStats = async (name) => {
             <input
               value={blockQuery}
               onChange={(e) => setBlockQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  onSearchBlock();
+                }
+              }}
               placeholder="Block number"
-              className="flex-1 border rounded-lg px-3 py-2 focus:outline-none focus:ring"
+              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
             />
-            <button onClick={onSearchBlock} className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700">
+            <button onClick={onSearchBlock} className="px-4 py-2 rounded-lg bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 font-medium hover:from-yellow-400 hover:to-amber-500 transition-all shadow-md hover:shadow-lg">
               {blockLoading ? 'Searching...' : 'Search'}
             </button>
+            {blockSearched && (
+              <button onClick={onClearBlock} className="px-4 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 transition-all">
+                Clear
+              </button>
+            )}
           </div>
+          
+          {/* Show block meta info if available */}
+          {blockMeta && (
+            <div className="mt-4 p-3 bg-amber-50 rounded-lg border border-amber-200">
+              <div className="text-sm text-gray-700">
+                <div className="flex items-center gap-2 mb-1">
+                  {blockClean ? (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      ✓ Clean Block
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                      🥪 Sandwich Detected
+                    </span>
+                  )}
+                  <a 
+                    href={`https://bscscan.com/block/${blockMeta.block_number}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-amber-600 hover:text-amber-700 hover:underline"
+                  >
+                    #{blockMeta.block_number}
+                  </a>
+                </div>
+                <div>Builder: <span className="font-medium text-amber-600">{blockMeta.builder_name || '-'}</span></div>
+                <div>Validator: <span className="font-medium text-amber-600">{blockMeta.validator_name || '-'}</span></div>
+              </div>
+            </div>
+          )}
+          
           {blockError && <div className="text-red-600 text-sm mt-2">{blockError}</div>}
 
           {blockResults.length > 0 && (
@@ -414,29 +519,29 @@ const loadBuilderStats = async (name) => {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-200">
-                    <th className="text-left py-2 px-3">Attack ID</th>
-                    <th className="text-left py-2 px-3">Front</th>
-                    <th className="text-left py-2 px-3">Victim</th>
-                    <th className="text-left py-2 px-3">Backruns</th>
-                    <th className="text-left py-2 px-3">Builder</th>
-                    <th className="text-left py-2 px-3">Validator</th>
+                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Attack ID</th>
+                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Front</th>
+                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Victim</th>
+                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Backruns</th>
+                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Builder</th>
+                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Validator</th>
                   </tr>
                 </thead>
                 <tbody>
                   {blockResults.map((r) => (
-                    <tr key={r.id} className="border-b border-gray-100">
-                      <td className="py-2 px-3">{r.id}</td>
-                      <td className="py-2 px-3 font-mono">{r.front_tx_hash}</td>
-                      <td className="py-2 px-3 font-mono">{r.victim_tx_hash}</td>
+                    <tr key={r.id} className="border-b border-gray-100 hover:bg-amber-50 transition-colors">
+                      <td className="py-2 px-3 text-amber-600 font-semibold">{r.id}</td>
+                      <td className="py-2 px-3 font-mono text-gray-600 text-xs">{r.front_tx_hash.slice(0,10)}...</td>
+                      <td className="py-2 px-3 font-mono text-gray-600 text-xs">{r.victim_tx_hash.slice(0,10)}...</td>
                       <td className="py-2 px-3">
                         <div className="flex flex-col gap-1">
                           {r.backrun_txes?.map((h, i) => (
-                            <span key={h} className="font-mono text-sm">{i + 1}. {h}</span>
+                            <span key={h} className="font-mono text-xs text-gray-500">{i + 1}. {h.slice(0,8)}...</span>
                           ))}
                         </div>
                       </td>
-                      <td className="py-2 px-3">{r.builder_name || '-'}</td>
-                      <td className="py-2 px-3">{r.validator_name || '-'}</td>
+                      <td className="py-2 px-3 text-gray-700">{r.builder_name || '-'}</td>
+                      <td className="py-2 px-3 text-gray-700">{r.validator_name || '-'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -453,17 +558,26 @@ const loadBuilderStats = async (name) => {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-200">
-                  <th className="text-left py-3 px-4">Block Number</th>
-                  <th className="text-left py-3 px-4">Status</th>
-                  <th className="text-left py-3 px-4">Time</th>
-                  <th className="text-left py-3 px-4">Builder</th>
-                  <th className="text-left py-3 px-4">Validator</th>
+                  <th className="text-left py-3 px-4 text-gray-600 font-medium">Block Number</th>
+                  <th className="text-left py-3 px-4 text-gray-600 font-medium">Status</th>
+                  <th className="text-left py-3 px-4 text-gray-600 font-medium">Time</th>
+                  <th className="text-left py-3 px-4 text-gray-600 font-medium">Builder</th>
+                  <th className="text-left py-3 px-4 text-gray-600 font-medium">Validator</th>
                 </tr>
               </thead>
               <tbody>
                 {recentBlocks.map((block, i) => (
-                  <tr key={i} className="border-b border-gray-100">
-                    <td className="py-3 px-4 font-mono">#{block.block_number}</td>
+                  <tr key={i} className="border-b border-gray-100 hover:bg-amber-50 transition-colors">
+                    <td className="py-3 px-4">
+                      <a 
+                        href={`https://bscscan.com/block/${block.block_number}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-mono text-amber-600 font-medium hover:text-amber-700 hover:underline"
+                      >
+                        #{block.block_number}
+                      </a>
+                    </td>
                     <td className="py-3 px-4">
                       {block.has_sandwich ? (
                         <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
@@ -478,8 +592,8 @@ const loadBuilderStats = async (name) => {
                     <td className="py-3 px-4 text-gray-500 text-sm">
                       {new Date(block.block_time || block.updated_at).toLocaleString()}
                     </td>
-                    <td className="py-3 px-4">{block.builder_name || '-'}</td>
-                    <td className="py-3 px-4">{block.validator_name || '-'}</td>
+                    <td className="py-3 px-4 text-gray-700">{block.builder_name || '-'}</td>
+                    <td className="py-3 px-4 text-gray-700">{block.validator_name || '-'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -488,6 +602,174 @@ const loadBuilderStats = async (name) => {
             </table>
           </div>
         </div>
+
+        {/* Builder Details */}
+        {showBuilderDetails && selectedBuilder && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            onClick={() => setShowBuilderDetails(false)}
+          >
+            <div 
+              className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 border-b border-gray-200">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    Sandwich Attacks by {selectedBuilder}
+                  </h2>
+                  <button
+                    onClick={() => setShowBuilderDetails(false)}
+                    className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="mt-2 text-sm text-gray-600">
+                  Total: {formatNumber(builderTotal)} attacks
+                </div>
+              </div>
+
+              <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 200px)' }}>
+                {builderLoading ? (
+                  <div className="text-center py-8">
+                    <div className="text-gray-600">Loading...</div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-gray-200">
+                            <th className="text-left py-2 px-3 text-gray-600 font-medium">Block</th>
+                            <th className="text-left py-2 px-3 text-gray-600 font-medium">Time</th>
+                            <th className="text-left py-2 px-3 text-gray-600 font-medium">Front TX</th>
+                            <th className="text-left py-2 px-3 text-gray-600 font-medium">Victim TX</th>
+                            <th className="text-left py-2 px-3 text-gray-600 font-medium">Backruns</th>
+                            <th className="text-left py-2 px-3 text-gray-600 font-medium">Validator</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {builderSandwiches.map((s) => (
+                            <tr key={s.id} className="border-b border-gray-100 hover:bg-amber-50">
+                              <td className="py-2 px-3">
+                                <a
+                                  href={`https://bscscan.com/block/${s.block_number}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="font-mono text-amber-600 hover:text-amber-700 hover:underline"
+                                >
+                                  #{s.block_number}
+                                </a>
+                              </td>
+                              <td className="py-2 px-3 text-gray-600 text-sm">
+                                {new Date(s.block_time).toLocaleString()}
+                              </td>
+                              <td className="py-2 px-3">
+                                <a
+                                  href={`https://bscscan.com/tx/${s.front_tx_hash}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="font-mono text-xs text-blue-600 hover:text-blue-700 hover:underline"
+                                >
+                                  {s.front_tx_hash.slice(0, 10)}...
+                                </a>
+                              </td>
+                              <td className="py-2 px-3">
+                                <a
+                                  href={`https://bscscan.com/tx/${s.victim_tx_hash}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="font-mono text-xs text-red-600 hover:text-red-700 hover:underline"
+                                >
+                                  {s.victim_tx_hash.slice(0, 10)}...
+                                </a>
+                              </td>
+                              <td className="py-2 px-3">
+                                <div className="flex flex-col gap-1">
+                                  {s.backrun_txes?.slice(0, 2).map((h, i) => (
+                                    <a
+                                      key={h}
+                                      href={`https://bscscan.com/tx/${h}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="font-mono text-xs text-gray-500 hover:text-gray-700 hover:underline"
+                                    >
+                                      {i + 1}. {h.slice(0, 8)}...
+                                    </a>
+                                  ))}
+                                  {s.backrun_txes?.length > 2 && (
+                                    <span className="text-xs text-gray-400">
+                                      +{s.backrun_txes.length - 2} more
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="py-2 px-3 text-gray-700 text-sm">
+                                {s.validator_name || '-'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Pagination */}
+                    <div className="flex justify-between items-center mt-6">
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm text-gray-600">
+                          Page {builderPage} of {builderTotalPages}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-gray-500">Go to:</span>
+                          <input
+                            type="number"
+                            min="1"
+                            max={builderTotalPages}
+                            className="w-16 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                const page = parseInt(e.target.value);
+                                if (page >= 1 && page <= builderTotalPages) {
+                                  loadBuilderSandwiches(selectedBuilder, page);
+                                }
+                              }
+                            }}
+                            placeholder="#"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => loadBuilderSandwiches(selectedBuilder, builderPage - 1)}
+                          disabled={builderPage <= 1}
+                          className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                            builderPage <= 1
+                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                              : 'bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 hover:from-yellow-400 hover:to-amber-500 shadow-md hover:shadow-lg'
+                          }`}
+                        >
+                          Previous
+                        </button>
+                        <button
+                          onClick={() => loadBuilderSandwiches(selectedBuilder, builderPage + 1)}
+                          disabled={builderPage >= builderTotalPages}
+                          className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                            builderPage >= builderTotalPages
+                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                              : 'bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 hover:from-yellow-400 hover:to-amber-500 shadow-md hover:shadow-lg'
+                          }`}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

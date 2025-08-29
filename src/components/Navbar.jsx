@@ -73,12 +73,12 @@ function Navbar() {
           <div className="hidden md:flex items-center space-x-4">
             {user ? (
               <>
-                <span className="text-[#4A4A4A] text-sm">欢迎, {user.username}</span>
+                <span className="text-[#4A4A4A] text-sm">Welcome, {user.username}</span>
                 <button
                   onClick={handleLogout}
                   className="bg-[#FF5733] hover:bg-[#E54A2A] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                 >
-                  登出
+                  Logout
                 </button>
               </>
             ) : (
@@ -86,7 +86,7 @@ function Navbar() {
                 to="/login" 
                 className="bg-[#FF5733] hover:bg-[#E54A2A] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
               >
-                登录
+                Login
               </NavLink>
             )}
           </div>
@@ -137,7 +137,7 @@ function Navbar() {
             <div className="pt-4 pb-3 border-t border-gray-200">
               {user ? (
                 <div className="px-3">
-                  <div className="text-[#4A4A4A] text-sm mb-3">欢迎, {user.username}</div>
+                  <div className="text-[#4A4A4A] text-sm mb-3">Welcome, {user.username}</div>
                   <button
                     onClick={() => {
                       handleLogout();
@@ -145,7 +145,7 @@ function Navbar() {
                     }}
                     className="w-full bg-[#FF5733] hover:bg-[#E54A2A] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                   >
-                    登出
+                    Logout
                   </button>
                 </div>
               ) : (
@@ -154,7 +154,7 @@ function Navbar() {
                   onClick={() => setMenuOpen(false)}
                   className="mx-3 block bg-[#FF5733] hover:bg-[#E54A2A] text-white px-4 py-2 rounded-lg text-sm font-medium text-center transition-colors"
                 >
-                  登录
+                  Login
                 </NavLink>
               )}
             </div>

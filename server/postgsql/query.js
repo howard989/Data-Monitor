@@ -90,7 +90,7 @@ async function getSandwichStats(builderName = null) {
     FROM ${TBL_OVERVIEW}
     WHERE builder_address IS NOT NULL
     GROUP BY 1,2
-    ORDER BY sandwich_blocks DESC, blocks DESC
+    ORDER BY (CASE WHEN COUNT(*) > 0 THEN 100.0 * COUNT(*) FILTER (WHERE has_sandwich) / COUNT(*) ELSE 0 END) DESC, blocks DESC
     LIMIT 100;
   `;
 
@@ -240,6 +240,63 @@ async function getBlockSandwiches(blockNumber) {
 }
 
 
+async function getBuilderSandwiches(builderName, page = 1, limit = 50) {
+  const offset = (page - 1) * limit;
+  
+  const countSql = `
+    SELECT COUNT(DISTINCT sa.id) as total
+    FROM public.sandwich_attack sa
+    JOIN ${TBL_OVERVIEW} bo ON bo.block_number = sa.block_number
+    WHERE bo.builder_address IS NOT NULL
+      AND (
+        (bo.builder_kind = 'builder' AND bo.builder_group = $1) OR
+        (bo.builder_kind = 'bribe' AND bo.builder_bribe_name = $1)
+      );
+  `;
+  
+  const dataSql = `
+    SELECT
+      sa.id,
+      sa.block_number,
+      sa.block_time,
+      sa.front_tx_hash,
+      sa.victim_tx_hash,
+      COALESCE(
+        ARRAY_REMOVE(ARRAY_AGG(sb.tx_hash ORDER BY sb.sequence NULLS LAST), NULL),
+        '{}'
+      ) AS backrun_txes,
+      CASE
+        WHEN bo.builder_kind = 'builder' THEN bo.builder_group
+        WHEN bo.builder_kind = 'bribe' THEN bo.builder_bribe_name
+      END AS builder_name,
+      bo.validator_name
+    FROM public.sandwich_attack sa
+    JOIN ${TBL_OVERVIEW} bo ON bo.block_number = sa.block_number
+    LEFT JOIN public.sandwich_backrun sb ON sb.attack_id = sa.id
+    WHERE bo.builder_address IS NOT NULL
+      AND (
+        (bo.builder_kind = 'builder' AND bo.builder_group = $1) OR
+        (bo.builder_kind = 'bribe' AND bo.builder_bribe_name = $1)
+      )
+    GROUP BY sa.id, bo.builder_kind, bo.builder_group, bo.builder_bribe_name, bo.validator_name
+    ORDER BY sa.block_number DESC
+    LIMIT $2 OFFSET $3;
+  `;
+  
+  const [countRes, dataRes] = await Promise.all([
+    pool.query(countSql, [builderName]),
+    pool.query(dataSql, [builderName, limit, offset])
+  ]);
+  
+  return {
+    total: parseInt(countRes.rows[0]?.total || 0),
+    page,
+    limit,
+    totalPages: Math.ceil((countRes.rows[0]?.total || 0) / limit),
+    data: dataRes.rows
+  };
+}
+
 async function getHourlyStats(hours = 24) {
   const sql = `
     SELECT
@@ -264,4 +321,5 @@ module.exports = {
   getHourlyStats,
   getBlockMeta,     
   getBuilderList,
+  getBuilderSandwiches,
 };

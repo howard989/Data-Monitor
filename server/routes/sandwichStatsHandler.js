@@ -7,7 +7,8 @@ const {
   findSandwichByTx,
   getBlockSandwiches,
   getHourlyStats,
-  getBuilderList
+  getBuilderList,
+  getBuilderSandwiches
 } = require('../postgsql/query');
 
 
@@ -95,6 +96,24 @@ router.get('/by-block/:block', authMiddleware, async (req, res) => {
   } catch (e) {
     console.error('Error in /by-block:', e);
     res.status(500).json({ success: false, error: 'Failed to query by block' });
+  }
+});
+
+router.get('/builder-sandwiches', authMiddleware, async (req, res) => {
+  try {
+    const builder = req.query.builder;
+    const page = parseInt(req.query.page) || 1;
+    const limit = Math.min(parseInt(req.query.limit) || 50, 100); 
+    
+    if (!builder) {
+      return res.status(400).json({ success: false, error: 'Builder name is required' });
+    }
+    
+    const result = await getBuilderSandwiches(builder, page, limit);
+    res.json({ success: true, ...result });
+  } catch (e) {
+    console.error('Error in /builder-sandwiches:', e);
+    res.status(500).json({ success: false, error: 'Failed to fetch builder sandwiches' });
   }
 });
 

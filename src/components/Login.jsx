@@ -124,7 +124,7 @@ function Login() {
                     marginBottom: '30px',
                     fontWeight: '700'
                 }}>
-                    欢迎登录
+                    Welcome to Data Monitor
                 </h1>
 
                 {error && (

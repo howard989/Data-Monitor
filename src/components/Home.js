@@ -4,11 +4,11 @@ import '../App.css';
 
 const Home = () => (
   <div className="main-content">
-    <h2 className="section-title">主页</h2>
+    <h2 className="section-title">Home</h2>
 
 
     <p className="text-lg">
-      欢迎来到binance-wallet控制面板！<br />
+      Welcome to Data Monitor! <br />
     </p>
   </div>
 );

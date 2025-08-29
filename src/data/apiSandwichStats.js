@@ -74,7 +74,9 @@ export const fetchAttackByTx = async (hash) => {
   const res = await authFetch(`${API_URL}/api/sandwich/by-tx/${hash.toLowerCase()}`, 
     { method: 'GET' }
   );
-  if (!res.ok) throw new Error('Failed to fetch by tx');
+  if (!res.ok) {
+    throw new Error('Failed to fetch by tx');
+  }
   return res.json(); 
 };
 
@@ -82,14 +84,20 @@ export const fetchAttacksByBlock = async (blockNumber) => {
   const res = await authFetch(`${API_URL}/api/sandwich/by-block/${blockNumber}`, 
     { method: 'GET' }
   );
-  if (!res.ok) throw new Error('Failed to fetch by block');
+  if (!res.ok) {
+    throw new Error('Failed to fetch by block');
+  }
   return res.json(); 
 };
 
 
 export const fetchBuilderList = async () => {
   const res = await authFetch(`${API_URL}/api/sandwich/builders`, { method: 'GET' });
-  if (!res.ok) throw new Error('Failed to fetch builders');
+  
+  if (!res.ok) {
+    throw new Error('Failed to fetch builders');
+  }
+
   return res.json(); 
 };
 
@@ -97,7 +105,23 @@ export const fetchSandwichStats = async (builderName) => {
   const url = builderName
     ? `${API_URL}/api/sandwich/stats?builder=${encodeURIComponent(builderName)}`
     : `${API_URL}/api/sandwich/stats`;
+
   const res = await authFetch(url, { method: 'GET' });
-  if (!res.ok) throw new Error('Failed to fetch stats');
+
+  if (!res.ok) {
+    throw new Error('Failed to fetch stats');
+  }
+
   return res.json(); 
+};
+
+export const fetchBuilderSandwiches = async (builder, page = 1, limit = 50) => {
+  const url = `${API_URL}/api/sandwich/builder-sandwiches?builder=${encodeURIComponent(builder)}&page=${page}&limit=${limit}`;
+  const res = await authFetch(url, { method: 'GET' });
+
+  if (!res.ok) {
+    throw new Error('Failed to fetch builder sandwiches');
+  }
+
+  return res.json();
 };
