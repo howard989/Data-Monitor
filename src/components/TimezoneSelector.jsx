@@ -1,24 +1,25 @@
 import React from 'react';
+import { Select } from 'antd';
 import { useTimezone, TIMEZONES } from '../context/TimezoneContext';
 import { getTimezoneOffset } from '../utils/timeFormatter';
 
 const TimezoneSelector = () => {
-  const { timezoneKey, setTimezone, timezone } = useTimezone();
-  
+  const { timezoneKey, setTimezone } = useTimezone();
+
+  const timezoneOptions = Object.entries(TIMEZONES).map(([key, { label, value }]) => ({
+    value: key,
+    label: `${label} ${getTimezoneOffset(value)}`,
+  }));
+
   return (
     <div className="flex items-center gap-2">
       <span className="text-sm text-gray-600">Timezone:</span>
-      <select
+      <Select
         value={timezoneKey}
-        onChange={(e) => setTimezone(e.target.value)}
-        className="px-3 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
-      >
-        {Object.entries(TIMEZONES).map(([key, { label, value }]) => (
-          <option key={key} value={key}>
-            {label} {getTimezoneOffset(value)}
-          </option>
-        ))}
-      </select>
+        onChange={(value) => setTimezone(value)}
+        options={timezoneOptions}
+        style={{ width: 180 }}
+      />
     </div>
   );
 };

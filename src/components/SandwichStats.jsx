@@ -1,3 +1,4 @@
+/* global BigInt */
 import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
@@ -9,7 +10,10 @@ import { formatBlockTime } from '../utils/timeFormatter';
 import TimezoneSelector from './TimezoneSelector';
 import SandwichChart from './SandwichChart';
 import useBnbUsdPrice from '../hooks/useBnbUsdPrice';
+import { Select, Spin, Input } from 'antd';
+import DateRangePicker from './common/DateRangePicker';
 
+const { Option } = Select;
 
 const TOKEN_INFO = {
   '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c': { symbol: 'WBNB', decimals: 18, isStable: false },
@@ -18,6 +22,13 @@ const TOKEN_INFO = {
   '0xe9e7cea3dedca5984780bafc599bd69add087d56': { symbol: 'BUSD', decimals: 18, isStable: true },
   '0x8d0d000ee44948fc98c9b98a4fa4921476f08b0d': { symbol: 'USD1', decimals: 18, isStable: true }
 };
+
+const bundleOptions = [
+  { value: '', label: 'All' },
+  { value: 'true', label: 'Bundle only' },
+  { value: 'false', label: 'Non-bundle only' },
+];
+
 
 const getTokenSymbol = (address) => {
   if (!address) return '-';
@@ -66,7 +77,6 @@ const SandwichStats = () => {
   const [builderTotal, setBuilderTotal] = useState(0);
   const [builderTotalPages, setBuilderTotalPages] = useState(0);
   const [builderLoading, setBuilderLoading] = useState(false);
-  
 
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const [builderDateRange, setBuilderDateRange] = useState({ start: '', end: '' });
@@ -80,7 +90,6 @@ const SandwichStats = () => {
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchPage, setSearchPage] = useState(1);
   const [searchLimit] = useState(50);
-
 
   const short = (addr) => (addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : '-');
 
@@ -99,8 +108,6 @@ const SandwichStats = () => {
       return (n / 1e18).toFixed(digits);
     }
   };
-
-
 
   const loadBuilders = async () => {
     const { data } = await fetchBuilderList();
@@ -140,7 +147,6 @@ const SandwichStats = () => {
     }
   };
 
-
   const handleUnauthorized = () => {
     logout();
     navigate('/login');
@@ -152,7 +158,7 @@ const SandwichStats = () => {
       if (startDate && endDate) {
         url += `?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`;
       }
-      
+
       const statsRes = await authFetch(url, {
         method: 'GET'
       });
@@ -161,7 +167,6 @@ const SandwichStats = () => {
         if (statsRes.status === 401) handleUnauthorized();
         return;
       }
-
       const statsData = await statsRes.json();
       setStats(statsData.data);
       setLastUpdate(new Date());
@@ -181,12 +186,10 @@ const SandwichStats = () => {
       const blocksRes = await authFetch(`${API_URL}/api/sandwich/recent?limit=20`, {
         method: 'GET'
       });
-
       if (!blocksRes.ok) {
         if (blocksRes.status === 401) handleUnauthorized();
         return;
       }
-
       const blocksData = await blocksRes.json();
       setRecentBlocks(blocksData.data);
     } catch (error) {
@@ -197,8 +200,6 @@ const SandwichStats = () => {
       }
     }
   };
-
-
 
   const onSearchTx = async () => {
     if (!txQuery) return;
@@ -284,15 +285,11 @@ const SandwichStats = () => {
     setSearchPage(1);
   };
 
-
-
   useEffect(() => {
     if (!authToken) {
       navigate('/login');
       return;
     }
-
-
     fetchStats(dateRange.start, dateRange.end);
     fetchBlocks();
 
@@ -309,8 +306,6 @@ const SandwichStats = () => {
       clearInterval(blocksInterval);
     };
   }, [authToken, dateRange.start, dateRange.end]); 
-
-
 
   useEffect(() => {
     if (!authToken) return;
@@ -336,14 +331,11 @@ const SandwichStats = () => {
 
   const calculateTotalUSD = (builder) => {
     if (!builder) return 0;
-    
     let totalUSD = builder.stable_usd_total || 0;
-    
     if (bnbUsdt && builder.wbnb_wei_total) {
       const bnbAmount = Number(builder.wbnb_wei_total) / 1e18;
       totalUSD += bnbAmount * bnbUsdt;
     }
-    
     return totalUSD;
   };
 
@@ -361,8 +353,8 @@ const SandwichStats = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white flex items-center justify-center">
-        <div className="text-xl text-gray-600">Loading...</div>
+      <div className="min-h-[calc(100vh-70px)] bg-gradient-to-br from-gray-50 to-white flex items-center justify-center">
+        <Spin size="large" />
       </div>
     );
   }
@@ -372,12 +364,12 @@ const SandwichStats = () => {
       <div className="max-w-7xl mx-auto">
 
         <div className="mb-8">
-          <div className="flex justify-between items-start">
+          <div className="flex flex-col md:flex-row justify-between items-start">
             <div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-yellow-600 to-amber-500 bg-clip-text text-transparent mb-2">
+              <h1 className="text-3xl md:text-4xl font-bold text-gray-800 mb-2">
                 MEV Sandwich Attack Monitor
               </h1>
-              <p className="text-sm text-gray-500 mt-2">
+              <p className="text-sm text-gray-600 mt-2">
                 Last update: {formatBlockTime(lastUpdate.getTime(), timezone, 'full')}
               </p>
             </div>
@@ -392,25 +384,22 @@ const SandwichStats = () => {
           </div>
         </div>
 
-
-        <div className="bg-gradient-to-r from-yellow-100 to-amber-200 rounded-2xl p-8 mb-8 shadow-xl">
+        <div className="bg-[#FFFBEC] rounded-2xl p-8 mb-8">
           <div className="text-center">
-            <h2 className="text-2xl font-semibold mb-4 text-gray-800">Sandwich Attack Rate</h2>
+            <h2 className="text-2xl font-semibold mb-4 text-[#F3BA2F]">Sandwich Attack Rate</h2>
             <div className="text-6xl font-bold mb-2 text-gray-900">
               {stats && stats.sandwich_percentage ? formatPercentage(stats.sandwich_percentage) : '0%'}
             </div>
-            <div className="text-lg text-gray-700">
+            <div className="text-lg text-gray-500">
               {stats && stats.sandwich_blocks ? formatNumber(stats.sandwich_blocks) : '0'} / {stats && stats.total_blocks ? formatNumber(stats.total_blocks) : '0'} blocks
             </div>
           </div>
         </div>
 
-
-
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow">
-            <div className="text-gray-500 text-sm mb-2">Total Blocks Analyzed</div>
-            <div className="text-3xl font-bold text-gray-900">
+          <div className="bg-white border border-gray-200 rounded p-6">
+            <div className="text-gray-900 text-sm mb-2">Total Blocks Analyzed</div>
+            <div className="text-3xl font-bold text-[1E1E1E]">
               {stats ? formatNumber(stats.total_blocks) : '0'}
             </div>
             <div className="text-xs text-gray-400 mt-2">
@@ -418,9 +407,9 @@ const SandwichStats = () => {
             </div>
           </div>
 
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow">
-            <div className="text-gray-500 text-sm mb-2">Blocks with Sandwich</div>
-            <div className="text-3xl font-bold text-red-600">
+          <div className="bg-white border border-gray-200 rounded p-6">
+            <div className="text-gray-900 text-sm mb-2">Blocks with Sandwich</div>
+            <div className="text-3xl font-bold text-[#E63946]">
               {stats ? formatNumber(stats.sandwich_blocks) : '0'}
             </div>
             <div className="text-xs text-gray-400 mt-2">
@@ -428,9 +417,9 @@ const SandwichStats = () => {
             </div>
           </div>
 
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow">
-            <div className="text-gray-500 text-sm mb-2">Latest Block</div>
-            <div className="text-3xl font-bold text-amber-600">
+          <div className="bg-white border border-gray-200 rounded p-6">
+            <div className="text-gray-900 text-sm mb-2">Latest Block</div>
+            <div className="text-3xl font-bold text-[#F3BA2F]">
               #{stats?.latest_block || 0}
             </div>
             <div className="text-xs text-gray-400 mt-2">
@@ -439,21 +428,17 @@ const SandwichStats = () => {
           </div>
         </div>
 
-
         {/* Builder Filter */}
-        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-lg mb-8">
+        <div className="bg-white border border-gray-200 rounded-xl p-6 mb-8">
           <div className="flex items-center gap-3 mb-4">
             <label className="text-gray-600">Filter by Builder:</label>
-            <select
+
+            <Select
               value={selectedBuilder}
-              onChange={(e) => setSelectedBuilder(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
-            >
-              <option value="">All Builders (global)</option>
-              {builders.map((b) => (
-                <option key={b} value={b}>{b}</option>
-              ))}
-            </select>
+              onChange={(value) => setSelectedBuilder(value)}
+              options={[{ value: '', label: 'All Builders (global)' }, ...builders.map((b) => ({ value: b, label: b }))]}
+            />
+
             {selectedBuilder && (
               <button
                 onClick={() => {
@@ -462,7 +447,7 @@ const SandwichStats = () => {
                   // without date params  default to last 30 days
                   loadBuilderSandwiches(selectedBuilder, 1);
                 }}
-                className="px-4 py-2 rounded-lg bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 font-medium hover:from-yellow-400 hover:to-amber-500 transition-all shadow-md hover:shadow-lg"
+                className="px-2 py-1 rounded bg-[#FFC801] text-[#1E1E1E] font-medium hover:bg-[#FFD829] transition-all"
               >
                 View Details
               </button>
@@ -472,18 +457,11 @@ const SandwichStats = () => {
           {/* Date Range Filter */}
           <div className="flex items-center gap-3 mt-4">
             <label className="text-gray-600">Date Range:</label>
-            <input
-              type="date"
-              value={dateRange.start}
-              onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-              className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
-            />
-            <span className="text-gray-500">to</span>
-            <input
-              type="date"
-              value={dateRange.end}
-              onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-              className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            <DateRangePicker
+              value={dateRange}
+              onChange={(v) => setDateRange(v)}
+              style={{ minWidth: 260 }}
+              inputReadOnly
             />
             <button
               onClick={() => {
@@ -494,7 +472,7 @@ const SandwichStats = () => {
                   }
                 }
               }}
-              className="px-4 py-2 rounded-lg bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 font-medium hover:from-yellow-400 hover:to-amber-500 transition-all shadow-md hover:shadow-lg"
+              className="px-4 py-1 rounded bg-[#FFC801] text-[#1E1E1E] font-medium hover:bg-[#FFD829] transition-all"
             >
               Apply
             </button>
@@ -507,7 +485,7 @@ const SandwichStats = () => {
                     loadBuilderStats(selectedBuilder);
                   }
                 }}
-                className="px-4 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 transition-all"
+                className="px-4 py-2 rounded border border-gray-300 text-gray-600 hover:bg-gray-50 transition-all"
               >
                 Clear
               </button>
@@ -558,7 +536,7 @@ const SandwichStats = () => {
           )}
 
           {selectedBuilder && builderStats && (
-            <div className="text-sm text-gray-600">
+            <div className="text-sm text-gray-600 mt-4">
               <div className="mb-2">Sandwich Rate for <span className="font-semibold text-amber-600">{selectedBuilder}</span></div>
               <div className="text-3xl font-bold text-gray-900">
                 {builderStats.sandwich_percentage?.toFixed(4)}%
@@ -579,49 +557,65 @@ const SandwichStats = () => {
         </div>
 
         {/* Advanced Search (victim_to / bundle / profit_token / date) */}
-        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-lg mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Filter Sandwiches</h2>
+        <div className="bg-white border border-gray-200 rounded-xl p-6 mb-8">
+          <h2 className="relative pl-3 text-base font-semibold text-gray-900 mb-4 leading-6">
+            <span
+              aria-hidden="true"
+              className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 bg-yellow-400"
+            ></span>
+            Filter Sandwiches
+          </h2>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div>
               <label className="text-gray-600 text-sm">Victim Router (tx.to)</label>
-              <input
-                value={filterVictimTo}
-                onChange={(e) => setFilterVictimTo(e.target.value)}
-                placeholder="0x..."
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
-              />
+                <Input
+                  value={filterVictimTo}
+                  onChange={(e) => setFilterVictimTo(e.target.value)}
+                  placeholder="0x..."
+                  className="w-full"
+                />
             </div>
+
             <div>
               <label className="text-gray-600 text-sm">Bundle</label>
-              <select
+              <Select
                 value={filterIsBundle}
-                onChange={(e) => setFilterIsBundle(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                onChange={(value) => setFilterIsBundle(value)}
+                className="w-full text-sm custom-select"
+                popupClassName="custom-dropdown"
+                popupMatchSelectWidth={false}
               >
-                <option value="">All</option>
-                <option value="true">Bundle only</option>
-                <option value="false">Non-bundle only</option>
-              </select>
+                {bundleOptions.map(({ value, label }) => (
+                  <Option
+                    key={value}
+                    value={value}
+                  >
+                    {label}
+                  </Option>
+                ))}
+              </Select>
             </div>
+
             <div>
               <label className="text-gray-600 text-sm">Profit Token</label>
-              <input
+              <Input
                 value={filterProfitToken}
                 onChange={(e) => setFilterProfitToken(e.target.value)}
                 placeholder="0xbb4c... (WBNB)"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                className="w-full"
               />
             </div>
+
             <div className="flex items-end gap-2">
               <button
                 onClick={() => runSearch(1)}
-                className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 font-medium hover:from-yellow-400 hover:to-amber-500 transition-all shadow-md hover:shadow-lg"
+                className="flex-2 px-4 py-1 rounded bg-[#FFC801] text-[#1E1E1E] hover:bg-[#FFD829] transition-all"
               >
-                {searchLoading ? 'Searching...' : 'Search'}
+                Search
               </button>
               <button
                 onClick={clearSearch}
-                className="px-4 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 transition-all"
+                className="flex-2 px-4 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-50 transition-all"
               >
                 Clear
               </button>
@@ -630,18 +624,12 @@ const SandwichStats = () => {
 
           <div className="flex items-center gap-3 mt-3">
             <label className="text-gray-600 text-sm">Date Range:</label>
-            <input
-              type="date"
-              value={searchDateRange.start}
-              onChange={(e) => setSearchDateRange({ ...searchDateRange, start: e.target.value })}
-              className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
-            />
-            <span className="text-gray-500">to</span>
-            <input
-              type="date"
-              value={searchDateRange.end}
-              onChange={(e) => setSearchDateRange({ ...searchDateRange, end: e.target.value })}
-              className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            <DateRangePicker
+              value={searchDateRange}
+              onChange={(v) => setSearchDateRange(v)}
+              style={{ minWidth: 260 }}
+              inputReadOnly
+              size="middle"
             />
           </div>
 
@@ -754,40 +742,36 @@ const SandwichStats = () => {
           )}
         </div>
 
-
-
-
-
-
         {/* Search by TX */}
-        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-lg mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Search by TX Hash</h2>
+        <div className="bg-white border border-gray-200 rounded-xl p-6 mb-8">
+          <h2 className="relative pl-3 text-base font-semibold text-gray-900 mb-4 leading-6">
+            <span
+              aria-hidden="true"
+              className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 bg-yellow-400"
+            ></span>
+            Search by TX Hash
+          </h2>
           <div className="flex gap-3">
-            <input
-              value={txQuery}
-              onChange={(e) => setTxQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  onSearchTx();
-                }
-              }}
-              placeholder="0x..."
-              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
-            />
-            <button onClick={onSearchTx} className="px-4 py-2 rounded-lg bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 font-medium hover:from-yellow-400 hover:to-amber-500 transition-all shadow-md hover:shadow-lg">
+            <Input
+                value={txQuery}
+                onChange={(e) => setTxQuery(e.target.value)}
+                onPressEnter={onSearchTx}
+                placeholder="0x..."
+                className="flex-1"
+              />
+            <button onClick={onSearchTx} className="px-4 py-1 rounded bg-[#FFC801] text-[#1E1E1E] font-medium hover:bg-[#FFD829] transition-all">
               {txLoading ? 'Searching...' : 'Search'}
             </button>
             {txSearched && (
-              <button onClick={onClearTx} className="px-4 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 transition-all">
+              <button onClick={onClearTx} className="px-4 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-50 transition-all">
                 Clear
               </button>
             )}
           </div>
 
-          {/* Show no results message for TX search */}
           {txSearched && !txLoading && txResults.length === 0 && (
-            <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-              <p className="text-amber-800 text-sm">
+            <div className="mt-4 p-4 bg-[#FFFBEC] border border-amber-200 rounded">
+              <p className="text-[#1E1E1E] text-sm">
                 This transaction is not part of a sandwich attack.
               </p>
             </div>
@@ -831,33 +815,34 @@ const SandwichStats = () => {
         </div>
 
         {/* Search by Block */}
-        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-lg mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Search by Block</h2>
+        <div className="bg-white border border-gray-200 rounded-xl p-6 mb-8">
+          <h2 className="relative pl-3 text-base font-semibold text-gray-900 mb-4 leading-6">
+            <span
+              aria-hidden="true"
+              className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 bg-yellow-400"
+            ></span>
+            Search by Block
+          </h2>
           <div className="flex gap-3">
-            <input
-              value={blockQuery}
-              onChange={(e) => setBlockQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  onSearchBlock();
-                }
-              }}
-              placeholder="Block number"
-              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
-            />
-            <button onClick={onSearchBlock} className="px-4 py-2 rounded-lg bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 font-medium hover:from-yellow-400 hover:to-amber-500 transition-all shadow-md hover:shadow-lg">
+            <Input
+                value={blockQuery}
+                onChange={(e) => setBlockQuery(e.target.value)}
+                onPressEnter={onSearchBlock}
+                placeholder="Block number"
+                className="flex-1"
+              />
+            <button onClick={onSearchBlock} className="px-4 py-1 rounded bg-[#FFC801] text-[#1E1E1E] font-medium hover:bg-[#FFD829] transition-all">
               {blockLoading ? 'Searching...' : 'Search'}
             </button>
             {blockSearched && (
-              <button onClick={onClearBlock} className="px-4 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 transition-all">
+              <button onClick={onClearBlock} className="px-4 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-50 transition-all">
                 Clear
               </button>
             )}
           </div>
           
-          {/* Show block meta info if available */}
           {blockMeta && (
-            <div className="mt-4 p-3 bg-amber-50 rounded-lg border border-amber-200">
+            <div className="mt-4 p-3 bg-amber-50 rounded border border-amber-200">
               <div className="text-sm text-gray-700">
                 <div className="flex items-center gap-2 mb-1">
                   {blockClean ? (
@@ -923,9 +908,14 @@ const SandwichStats = () => {
           )}
         </div>
 
-
-        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-lg">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Recent Blocks</h2>
+        <div className="bg-white border border-gray-200 rounded-xl p-6">
+          <h2 className="relative pl-3 text-base font-semibold text-gray-900 mb-4 leading-6">
+            <span
+              aria-hidden="true"
+              className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 bg-yellow-400"
+            ></span>
+            Recent Blocks
+          </h2>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -969,8 +959,6 @@ const SandwichStats = () => {
                   </tr>
                 ))}
               </tbody>
-
-
             </table>
           </div>
         </div>
@@ -1066,18 +1054,12 @@ const SandwichStats = () => {
                 {/* Date filter for builder details */}
                 <div className="flex items-center gap-3 mt-4">
                   <label className="text-sm text-gray-600">Date Range:</label>
-                  <input
-                    type="date"
-                    value={builderDateRange.start}
-                    onChange={(e) => setBuilderDateRange({ ...builderDateRange, start: e.target.value })}
-                    className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  />
-                  <span className="text-sm text-gray-500">to</span>
-                  <input
-                    type="date"
-                    value={builderDateRange.end}
-                    onChange={(e) => setBuilderDateRange({ ...builderDateRange, end: e.target.value })}
-                    className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  <DateRangePicker
+                    value={builderDateRange}
+                    onChange={(v) => setBuilderDateRange(v)}
+                    style={{ minWidth: 240, height: '42px' }}
+                    size="middle"
+                    inputReadOnly
                   />
                   <button
                     onClick={() => {
@@ -1086,7 +1068,7 @@ const SandwichStats = () => {
                         loadBuilderSandwiches(selectedBuilder, 1, builderDateRange.start, builderDateRange.end);
                       }
                     }}
-                    className="text-sm px-3 py-1 rounded bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 font-medium hover:from-yellow-400 hover:to-amber-500 shadow-md hover:shadow-lg"
+                    className="text-sm px-3 py-1 rounded bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 font-medium hover:from-yellow-400 hover:to-amber-500"
                   >
                     Apply
                   </button>
@@ -1226,10 +1208,10 @@ const SandwichStats = () => {
                         <button
                           onClick={() => loadBuilderSandwiches(selectedBuilder, builderPage - 1, builderDateRange.start, builderDateRange.end)}
                           disabled={builderPage <= 1}
-                          className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                          className={`px-4 py-2 rounded font-medium transition-all ${
                             builderPage <= 1
                               ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                              : 'bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 hover:from-yellow-400 hover:to-amber-500 shadow-md hover:shadow-lg'
+                              : 'bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 hover:from-yellow-400 hover:to-amber-500'
                           }`}
                         >
                           Previous
@@ -1237,10 +1219,10 @@ const SandwichStats = () => {
                         <button
                           onClick={() => loadBuilderSandwiches(selectedBuilder, builderPage + 1, builderDateRange.start, builderDateRange.end)}
                           disabled={builderPage >= builderTotalPages}
-                          className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                          className={`px-4 py-2 rounded font-medium transition-all ${
                             builderPage >= builderTotalPages
                               ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                              : 'bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 hover:from-yellow-400 hover:to-amber-500 shadow-md hover:shadow-lg'
+                              : 'bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 hover:from-yellow-400 hover:to-amber-500'
                           }`}
                         >
                           Next

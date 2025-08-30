@@ -7,6 +7,7 @@ import {
 import { fetchChartData } from '../data/apiSandwichStats';
 import { useTimezone } from '../context/TimezoneContext';
 import { formatBlockTime } from '../utils/timeFormatter';
+import { Select, Spin } from 'antd';
 
 const COLORS = [
   '#f59e0b', 
@@ -17,6 +18,19 @@ const COLORS = [
   '#3b82f6', 
   '#8b5cf6', 
   '#ec4899', 
+];
+
+const intervalOptions = [
+  { value: 'hourly', label: 'Hourly' },
+  { value: 'daily', label: 'Daily' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'monthly', label: 'Monthly' }
+];
+
+const chartTypeOptions = [
+  { value: 'line', label: 'Line Chart' },
+  { value: 'area', label: 'Area Chart' },
+  { value: 'composed', label: 'Combined View' }
 ];
 
 const SandwichChart = ({ dateRange }) => {
@@ -56,7 +70,7 @@ const SandwichChart = ({ dateRange }) => {
       }
       
       setChartData(data);
-      
+
       if (data.summary?.builders) {
         setAvailableBuilders(data.summary.builders);
       }
@@ -69,7 +83,10 @@ const SandwichChart = ({ dateRange }) => {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-xl p-6 shadow-lg">
+      <div className="bg-white rounded-xl p-6 border border-gray-200 relative">
+        <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70">
+          <Spin size="large" />
+        </div>
         <div className="animate-pulse">
           <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
           <div className="h-64 bg-gray-100 rounded"></div>
@@ -80,7 +97,7 @@ const SandwichChart = ({ dateRange }) => {
 
   if (!chartData || !chartData.series || chartData.series.length === 0) {
     return (
-      <div className="bg-white rounded-xl p-6 shadow-lg">
+      <div className="bg-white rounded-xl p-6 border border-gray-200">
         <div className="text-center text-gray-500">No data available for the selected period</div>
       </div>
     );
@@ -89,69 +106,75 @@ const SandwichChart = ({ dateRange }) => {
   const builders = chartData.summary?.builders || [];
 
   return (
-    <div className="bg-white rounded-xl p-6 shadow-lg">
+    <div className="bg-white rounded-xl p-6 border border-gray-200">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Sandwich Rate Trends</h2>
-        
+        <h2 className="relative pl-3 text-base font-semibold text-gray-900 mb-4 leading-6">
+            <span
+              aria-hidden="true"
+              className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 bg-yellow-400"
+            ></span>
+            Sandwich Rate Trends
+          </h2>
         <div className="flex gap-3">
           {/* Builder Selector */}
-          <select
-            value={builderFilter}
-            onChange={(e) => setBuilderFilter(e.target.value)}
-            className="px-3 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
-          >
-            <option value="all">All Top Builders</option>
-            {availableBuilders.map(builder => (
-              <option key={builder} value={builder}>{builder}</option>
-            ))}
-          </select>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">Builder:</span>
+            <Select
+              value={builderFilter}
+              onChange={(value) => setBuilderFilter(value)}
+              options={[
+                { value: 'all', label: 'All Top Builders' },
+                ...availableBuilders.map((b) => ({ value: b, label: b }))
+              ]}
+               style={{ width: 180 }}
+            />
+          </div>
 
           {/* Interval Selector */}
-          <select
-            value={interval}
-            onChange={(e) => setInterval(e.target.value)}
-            className="px-3 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
-          >
-            <option value="hourly">Hourly</option>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-          </select>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">Interval:</span>
+            <Select
+              value={interval}
+              onChange={(value) => setInterval(value)}
+              options={intervalOptions}
+              style={{ width: 120 }}
+            />
+          </div>
 
           {/* Chart Type Selector */}
-          <select
-            value={chartType}
-            onChange={(e) => setChartType(e.target.value)}
-            className="px-3 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
-          >
-            <option value="line">Line Chart</option>
-            <option value="area">Area Chart</option>
-            <option value="composed">Combined View</option>
-          </select>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">Chart Type:</span>
+            <Select
+              value={chartType}
+              onChange={(value) => setChartType(value)}
+              options={chartTypeOptions}
+               style={{ width: 120 }}
+            />
+          </div>
         </div>
       </div>
 
       {/* Summary Stats */}
       <div className="grid grid-cols-4 gap-4 mb-6">
-        <div className="bg-amber-50 rounded-lg p-3">
+        <div className="bg-amber-50 rounded p-3">
           <div className="text-xs text-gray-600">Avg Rate</div>
           <div className="text-xl font-bold text-amber-600">
             {chartData.summary?.avgRate || 0}%
           </div>
         </div>
-        <div className="bg-yellow-50 rounded-lg p-3">
+        <div className="bg-yellow-50 rounded p-3">
           <div className="text-xs text-gray-600">Total Blocks</div>
           <div className="text-xl font-bold text-yellow-600">
             {(chartData.summary?.totalBlocks || 0).toLocaleString()}
           </div>
         </div>
-        <div className="bg-orange-50 rounded-lg p-3">
+        <div className="bg-orange-50 rounded p-3">
           <div className="text-xs text-gray-600">Sandwiches</div>
           <div className="text-xl font-bold text-orange-600">
             {(chartData.summary?.totalSandwiches || 0).toLocaleString()}
           </div>
         </div>
-        <div className="bg-red-50 rounded-lg p-3">
+        <div className="bg-red-50 rounded p-3">
           <div className="text-xs text-gray-600">Builders</div>
           <div className="text-xl font-bold text-red-600">
             {builders.length}
@@ -164,23 +187,23 @@ const SandwichChart = ({ dateRange }) => {
         {chartType === 'line' ? (
           <LineChart data={chartData.series}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis 
-              dataKey="displayDate" 
+            <XAxis
+              dataKey="displayDate"
               tick={{ fontSize: 12 }}
               angle={-45}
               textAnchor="end"
               height={80}
             />
-            <YAxis 
+            <YAxis
               label={{ value: 'Sandwich Rate (%)', angle: -90, position: 'insideLeft' }}
               tick={{ fontSize: 12 }}
             />
-            <Tooltip 
+            <Tooltip
               formatter={(value) => `${value}%`}
               labelFormatter={(label) => `Time: ${label}`}
             />
             <Legend />
-            
+
             {/* Overall rate line */}
             <Line
               type="monotone"
@@ -191,7 +214,7 @@ const SandwichChart = ({ dateRange }) => {
               strokeDasharray="5 5"
               dot={false}
             />
-            
+
             {/* Builder lines */}
             {builders.map((builder, index) => (
               <Line
@@ -208,23 +231,23 @@ const SandwichChart = ({ dateRange }) => {
         ) : chartType === 'area' ? (
           <AreaChart data={chartData.series}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis 
-              dataKey="displayDate" 
+            <XAxis
+              dataKey="displayDate"
               tick={{ fontSize: 12 }}
               angle={-45}
               textAnchor="end"
               height={80}
             />
-            <YAxis 
+            <YAxis
               label={{ value: 'Sandwich Rate (%)', angle: -90, position: 'insideLeft' }}
               tick={{ fontSize: 12 }}
             />
-            <Tooltip 
+            <Tooltip
               formatter={(value) => `${value}%`}
               labelFormatter={(label) => `Time: ${label}`}
             />
             <Legend />
-            
+
             {builders.map((builder, index) => (
               <Area
                 key={builder}
@@ -241,25 +264,25 @@ const SandwichChart = ({ dateRange }) => {
         ) : (
           <ComposedChart data={chartData.series}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis 
-              dataKey="displayDate" 
+            <XAxis
+              dataKey="displayDate"
               tick={{ fontSize: 12 }}
               angle={-45}
               textAnchor="end"
               height={80}
             />
-            <YAxis 
+            <YAxis
               yAxisId="left"
               label={{ value: 'Sandwich Rate (%)', angle: -90, position: 'insideLeft' }}
               tick={{ fontSize: 12 }}
             />
-            <YAxis 
+            <YAxis
               yAxisId="right"
               orientation="right"
               label={{ value: 'Total Blocks', angle: 90, position: 'insideRight' }}
               tick={{ fontSize: 12 }}
             />
-            <Tooltip 
+            <Tooltip
               formatter={(value, name) => {
                 if (name === 'Total Blocks') return value.toLocaleString();
                 return `${value}%`;
@@ -267,7 +290,7 @@ const SandwichChart = ({ dateRange }) => {
               labelFormatter={(label) => `Time: ${label}`}
             />
             <Legend />
-            
+
             {/* Bar for total blocks */}
             <Bar
               yAxisId="right"
@@ -276,7 +299,7 @@ const SandwichChart = ({ dateRange }) => {
               fill="#e5e7eb"
               opacity={0.5}
             />
-            
+
             {/* Lines for sandwich rates */}
             <Line
               yAxisId="left"
@@ -288,7 +311,7 @@ const SandwichChart = ({ dateRange }) => {
               strokeDasharray="5 5"
               dot={false}
             />
-            
+
             {builders.slice(0, 3).map((builder, index) => (
               <Line
                 key={builder}
@@ -313,12 +336,12 @@ const SandwichChart = ({ dateRange }) => {
             <div
               key={builder}
               className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100"
-              style={{ 
+              style={{
                 backgroundColor: `${COLORS[index % COLORS.length]}20`,
                 color: COLORS[index % COLORS.length]
               }}
             >
-              <div 
+              <div
                 className="w-3 h-3 rounded-full mr-2"
                 style={{ backgroundColor: COLORS[index % COLORS.length] }}
               />

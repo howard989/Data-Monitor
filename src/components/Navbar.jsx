@@ -32,19 +32,17 @@ function Navbar() {
   };
 
   return (
-    <nav className="bg-white shadow-md border-b border-gray-100">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <nav className="bg-white border-b-2 border-[#FFC800] shadow-[0_1px_0_rgba(0,0,0,0.02)]">
+      <div className="max-w-[1140px] mx-auto px-4 sm:px-6 lg:px-0">
         <div className="flex justify-between h-16">
           {/* Logo和导航链接 */}
           <div className="flex items-center">
             <div className="flex-shrink-0 flex items-center mr-8">
-              <h1 className="text-xl font-bold text-gray-800">
-                Data Monitor
-              </h1>
+              <h1 className="text-[20px] font-bold tracking-wide text-[#F3BA2F]">Data Monitor</h1>
             </div>
             
             {/* 桌面端导航 */}
-            <div className="hidden md:flex md:space-x-8">
+            <div className="hidden md:flex md:space-x-6">
               {/* <NavLink 
                 to="/" 
                 className={({ isActive }) =>
@@ -60,8 +58,8 @@ function Navbar() {
                 to="/sandwich-stats" 
                 className={({ isActive }) =>
                   isActive
-                    ? 'text-[#FF5733] inline-flex items-center px-1 pt-1 border-b-2 border-[#FF5733] text-sm font-medium h-full'
-                    : 'text-[#4A4A4A] hover:text-[#FF5733] inline-flex items-center px-1 pt-1 border-b-2 border-transparent hover:border-gray-300 text-sm font-medium h-full transition-colors'
+                    ? 'text-black inline-flex items-center px-1 pt-1 border-b-2 border-[#FFC801] text-[15px] font-semibold h-full'
+                    : 'text-[#1E1E1E] hover:text-black inline-flex items-center px-1 pt-1 border-b-2 border-transparent text-[15px] font-medium h-full transition-colors'
                 }
               >
                 Sandwich Stats
@@ -76,7 +74,7 @@ function Navbar() {
                 <span className="text-[#4A4A4A] text-sm">Welcome, {user.username}</span>
                 <button
                   onClick={handleLogout}
-                  className="bg-[#FF5733] hover:bg-[#E54A2A] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                  className="bg-[#FFC801] hover:brightness-95 text-[#1E1E1E] px-4 py-2 rounded-sm text-sm transition-all shadow"
                 >
                   Logout
                 </button>
@@ -84,7 +82,7 @@ function Navbar() {
             ) : (
               <NavLink 
                 to="/login" 
-                className="bg-[#FF5733] hover:bg-[#E54A2A] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                className="bg-[#FFC801] hover:brightness-95 text-[#1E1E1E] px-4 py-2 rounded-sm text-sm transition-all shadow"
               >
                 Login
               </NavLink>
@@ -95,7 +93,7 @@ function Navbar() {
           <div className="md:hidden flex items-center">
             <button 
               onClick={() => setMenuOpen(!menuOpen)}
-              className="text-[#4A4A4A] hover:text-[#FF5733] p-2"
+              className="text-[#1E1E1E] hover:text-black p-2"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
@@ -107,8 +105,8 @@ function Navbar() {
 
       {/* 移动端菜单 */}
       {menuOpen && (
-        <div className="md:hidden bg-white border-t border-gray-100">
-          <div className="px-2 pt-2 pb-3 space-y-1">
+        <div className="md:hidden bg-white border-t border-[#FFE38A]">
+          <div className="max-w-[1140px] mx-auto px-2 pt-2 pb-3 space-y-1">
             {/* <NavLink
               to="/"
               onClick={() => setMenuOpen(false)}
@@ -126,8 +124,8 @@ function Navbar() {
               onClick={() => setMenuOpen(false)}
               className={({ isActive }) =>
                 isActive
-                  ? 'text-[#FF5733] block px-3 py-2 rounded-md text-base font-medium bg-orange-50'
-                  : 'text-[#4A4A4A] hover:text-[#FF5733] hover:bg-gray-50 block px-3 py-2 rounded-md text-base font-medium'
+                  ? 'text-black block px-3 py-2 rounded-md text-base font-bold bg-yellow-50'
+                  : 'text-[#1E1E1E] hover:text-black hover:bg-gray-50 block px-3 py-2 rounded-md text-base font-medium'
               }
             >
               Sandwich Stats
@@ -143,7 +141,7 @@ function Navbar() {
                       handleLogout();
                       setMenuOpen(false);
                     }}
-                    className="w-full bg-[#FF5733] hover:bg-[#E54A2A] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                    className="w-full bg-[#FFC801] hover:brightness-95 text-[#1E1E1E] px-4 py-2 rounded-sm text-sm transition-all shadow"
                   >
                     Logout
                   </button>
@@ -152,7 +150,7 @@ function Navbar() {
                 <NavLink
                   to="/login"
                   onClick={() => setMenuOpen(false)}
-                  className="mx-3 block bg-[#FF5733] hover:bg-[#E54A2A] text-white px-4 py-2 rounded-lg text-sm font-medium text-center transition-colors"
+                  className="mx-3 block bg-[#FFC801] hover:brightness-95 text-[#1E1E1E] px-4 py-2 rounded-sm text-sm text-center transition-all shadow"
                 >
                   Login
                 </NavLink>
