@@ -18,13 +18,10 @@ const STATS_CACHE_DURATION = 6000;
 
 async function getBuilderList() {
   const sql = `
-    SELECT DISTINCT
-      CASE
-        WHEN builder_kind = 'builder' THEN builder_group
-        WHEN builder_kind = 'bribe'   THEN builder_bribe_name
-      END AS builder_name
+    SELECT DISTINCT builder_group AS builder_name
     FROM ${TBL_OVERVIEW}
-    WHERE builder_address IS NOT NULL
+    WHERE builder_kind = 'builder' 
+      AND builder_group IS NOT NULL
     ORDER BY builder_name;
   `;
   const { rows } = await pool.query(sql);
@@ -49,11 +46,8 @@ async function getSandwichStats(builderName = null, startDate = null, endDate = 
       WITH f AS (
         SELECT *
         FROM ${TBL_OVERVIEW}
-        WHERE builder_address IS NOT NULL
-          AND (
-            (builder_kind='builder' AND builder_group = $${paramIndex}) OR
-            (builder_kind='bribe'   AND builder_bribe_name = $${paramIndex})
-          )
+        WHERE builder_kind = 'builder'
+          AND builder_group = $${paramIndex}
           ${dateFilter}
       )
       SELECT
@@ -95,40 +89,63 @@ async function getSandwichStats(builderName = null, startDate = null, endDate = 
   const breakdownSql = `
     WITH builder_stats AS (
       SELECT
-        CASE
-          WHEN bo.builder_kind = 'builder' THEN bo.builder_group
-          WHEN bo.builder_kind = 'bribe'   THEN bo.builder_bribe_name
-          ELSE NULL
-        END AS builder_name,
+        bo.builder_group AS builder_name,
         bo.builder_kind,
         bo.block_number,
         bo.has_sandwich
       FROM ${TBL_OVERVIEW} bo
-      WHERE bo.builder_address IS NOT NULL ${dateFilter}
+      WHERE bo.builder_kind = 'builder' 
+        AND bo.builder_group IS NOT NULL ${dateFilter}
     ),
-    profit_stats AS (
+    token_profits AS (
+      SELECT 
+        bmp.builder_name,
+        bmp.profit_token,
+        bmp.token_symbol,
+        bmp.total_profit_wei::text,
+        bmp.sandwich_count
+      FROM public.builder_main_token_profits bmp
+    ),
+    profit_summary AS (
       SELECT
-        CASE
-          WHEN bo.builder_kind = 'builder' THEN bo.builder_group
-          WHEN bo.builder_kind = 'bribe'   THEN bo.builder_bribe_name
-        END AS builder_name,
-        COALESCE(SUM(sa.profit_wei::numeric), 0) AS total_profit_wei
-      FROM ${TBL_OVERVIEW} bo
-      LEFT JOIN public.sandwich_attack sa ON sa.block_number = bo.block_number
-      WHERE bo.builder_address IS NOT NULL 
-        AND bo.has_sandwich = true
-        ${dateFilter}
-      GROUP BY 1
+        builder_name,
+        -- Calculate total USD: WBNB will need frontend conversion, stables are 1:1
+        SUM(CASE 
+          WHEN profit_token IN ('0x55d398326f99059ff775485246999027b3197955', -- USDT
+                                '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d', -- USDC
+                                '0xe9e7cea3dedca5984780bafc599bd69add087d56', -- BUSD
+                                '0x8d0d000ee44948fc98c9b98a4fa4921476f08b0d') -- USD1
+          THEN total_profit_wei::numeric / 1e18
+          ELSE 0
+        END) AS stable_usd_total,
+        SUM(CASE 
+          WHEN profit_token = '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c' -- WBNB
+          THEN total_profit_wei::numeric
+          ELSE 0
+        END)::text AS wbnb_wei_total,
+        jsonb_agg(
+          jsonb_build_object(
+            'token', token_symbol,
+            'token_address', profit_token,
+            'profit_wei', total_profit_wei,
+            'count', sandwich_count
+          )
+        ) AS profit_breakdown
+      FROM token_profits
+      GROUP BY builder_name
     )
     SELECT
       bs.builder_name,
-      bs.builder_kind,
+      MAX(bs.builder_kind) AS builder_kind,
       COUNT(*)::bigint AS blocks,
       COUNT(*) FILTER (WHERE bs.has_sandwich)::bigint AS sandwich_blocks,
-      COALESCE(ps.total_profit_wei, 0)::text AS total_profit_wei
+      COALESCE(ps.wbnb_wei_total, '0') AS wbnb_wei_total,
+      COALESCE(ps.stable_usd_total, 0) AS stable_usd_total,
+      ps.profit_breakdown
     FROM builder_stats bs
-    LEFT JOIN profit_stats ps ON ps.builder_name = bs.builder_name
-    GROUP BY 1, 2, ps.total_profit_wei
+    LEFT JOIN profit_summary ps ON ps.builder_name = bs.builder_name
+    WHERE bs.builder_name IS NOT NULL
+    GROUP BY bs.builder_name, ps.wbnb_wei_total, ps.stable_usd_total, ps.profit_breakdown
     ORDER BY (CASE WHEN COUNT(*) > 0 THEN 100.0 * COUNT(*) FILTER (WHERE bs.has_sandwich) / COUNT(*) ELSE 0 END) DESC, blocks DESC
     LIMIT 100;
   `;
@@ -144,7 +161,9 @@ async function getSandwichStats(builderName = null, startDate = null, endDate = 
     blocks: Number(r.blocks),
     sandwich_blocks: Number(r.sandwich_blocks),
     sandwich_percentage: r.blocks ? Number((100 * Number(r.sandwich_blocks) / Number(r.blocks)).toFixed(6)) : 0,
-    total_profit_wei: r.total_profit_wei || "0"
+    wbnb_wei_total: r.wbnb_wei_total || "0",
+    stable_usd_total: Number(r.stable_usd_total || 0),
+    profit_breakdown: r.profit_breakdown || []
   }));
 
   const total_blocks = Number(b.total_blocks || 0);
@@ -336,11 +355,8 @@ async function getBuilderSandwiches(builderName, page = 1, limit = 50, startDate
     SELECT COUNT(DISTINCT sa.id) as total
     FROM public.sandwich_attack sa
     JOIN ${TBL_OVERVIEW} bo ON bo.block_number = sa.block_number
-    WHERE bo.builder_address IS NOT NULL
-      AND (
-        (bo.builder_kind = 'builder' AND bo.builder_group = $1) OR
-        (bo.builder_kind = 'bribe' AND bo.builder_bribe_name = $1)
-      )
+    WHERE bo.builder_kind = 'builder'
+      AND bo.builder_group = $1
       ${dateFilter};
   `;
 
@@ -374,11 +390,8 @@ async function getBuilderSandwiches(builderName, page = 1, limit = 50, startDate
   FROM public.sandwich_attack sa
   JOIN ${TBL_OVERVIEW} bo ON bo.block_number = sa.block_number
   LEFT JOIN public.sandwich_backrun sb ON sb.attack_id = sa.id
-  WHERE bo.builder_address IS NOT NULL
-    AND (
-      (bo.builder_kind = 'builder' AND bo.builder_group = $1) OR
-      (bo.builder_kind = 'bribe' AND bo.builder_bribe_name = $1)
-    )
+  WHERE bo.builder_kind = 'builder'
+    AND bo.builder_group = $1
     ${dateFilter}
   GROUP BY sa.id, bo.builder_kind, bo.builder_group, bo.builder_bribe_name, bo.validator_name
   ORDER BY sa.block_number DESC

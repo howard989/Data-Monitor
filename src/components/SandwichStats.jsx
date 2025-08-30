@@ -11,7 +11,19 @@ import SandwichChart from './SandwichChart';
 import useBnbUsdPrice from '../hooks/useBnbUsdPrice';
 
 
+const TOKEN_INFO = {
+  '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c': { symbol: 'WBNB', decimals: 18, isStable: false },
+  '0x55d398326f99059ff775485246999027b3197955': { symbol: 'USDT', decimals: 18, isStable: true },
+  '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d': { symbol: 'USDC', decimals: 18, isStable: true },
+  '0xe9e7cea3dedca5984780bafc599bd69add087d56': { symbol: 'BUSD', decimals: 18, isStable: true },
+  '0x8d0d000ee44948fc98c9b98a4fa4921476f08b0d': { symbol: 'USD1', decimals: 18, isStable: true }
+};
 
+const getTokenSymbol = (address) => {
+  if (!address) return '-';
+  const info = TOKEN_INFO[address.toLowerCase()];
+  return info ? info.symbol : `${address.slice(0, 6)}…${address.slice(-4)}`;
+};
 
 const SandwichStats = () => {
   const [stats, setStats] = useState(null);
@@ -322,15 +334,26 @@ const SandwichStats = () => {
     return `${parseFloat(num).toFixed(4)}%`;
   };
 
-  const formatProfitUSD = (weiString) => {
-    if (!weiString || weiString === "0" || !bnbUsdt) return "$0";
+  const calculateTotalUSD = (builder) => {
+    if (!builder) return 0;
+    
+    let totalUSD = builder.stable_usd_total || 0;
+    
+    if (bnbUsdt && builder.wbnb_wei_total) {
+      const bnbAmount = Number(builder.wbnb_wei_total) / 1e18;
+      totalUSD += bnbAmount * bnbUsdt;
+    }
+    
+    return totalUSD;
+  };
+
+  const formatProfitUSD = (totalUSD) => {
+    if (!totalUSD || totalUSD === 0) return "$0";
     try {
-      const bnb = Number(weiString) / 1e18;
-      const usd = bnb * bnbUsdt;
-      if (usd < 0.01) return "<$0.01";
-      if (usd < 1000) return `$${usd.toFixed(2)}`;
-      if (usd < 1000000) return `$${(usd / 1000).toFixed(1)}K`;
-      return `$${(usd / 1000000).toFixed(2)}M`;
+      if (totalUSD < 0.01) return "<$0.01";
+      if (totalUSD < 1000) return `$${totalUSD.toFixed(2)}`;
+      if (totalUSD < 1000000) return `$${(totalUSD / 1000).toFixed(1)}K`;
+      return `$${(totalUSD / 1000000).toFixed(2)}M`;
     } catch {
       return "-";
     }
@@ -523,7 +546,7 @@ const SandwichStats = () => {
                             <td className="py-2 px-2 text-gray-700">{formatNumber(b.blocks)}</td>
                             <td className="py-2 px-2 text-gray-700">{formatNumber(b.sandwich_blocks)}</td>
                             <td className="py-2 px-2 text-amber-600 font-semibold">{b.sandwich_percentage.toFixed(4)}%</td>
-                            <td className="py-2 px-2 text-green-600 font-semibold">{formatProfitUSD(b.total_profit_wei)}</td>
+                            <td className="py-2 px-2 text-green-600 font-semibold">{formatProfitUSD(calculateTotalUSD(b))}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -628,7 +651,7 @@ const SandwichStats = () => {
                 <thead>
                   <tr className="border-b border-gray-200">
                     <th className="text-left py-2 px-3 text-gray-600 font-medium">Block</th>
-                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Profit (WBNB)</th>
+                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Profit</th>
                     <th className="text-left py-2 px-3 text-gray-600 font-medium">Type</th>
                     <th className="text-left py-2 px-3 text-gray-600 font-medium">Victim Router</th>
                     <th className="text-left py-2 px-3 text-gray-600 font-medium">FrontRun TX</th>
@@ -652,14 +675,14 @@ const SandwichStats = () => {
                         </a>
                       </td>
                       <td className="py-2 px-3 font-mono text-gray-800">
-                        {formatWei(r.profit_wei)}{' '}
+                        {formatWei(r.profit_wei, 18, 4)}{' '}
                         <a
                           href={`https://bscscan.com/token/${r.profit_token}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-gray-500 hover:text-gray-700 hover:underline"
+                          className="text-amber-600 hover:text-amber-700 hover:underline font-semibold"
                         >
-                          {short(r.profit_token)}
+                          {getTokenSymbol(r.profit_token)}
                         </a>
                       </td>
                       <td className="py-2 px-3">
