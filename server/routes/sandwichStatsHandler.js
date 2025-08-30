@@ -10,6 +10,7 @@ const {
   getBuilderList,
   getBuilderSandwiches,
   searchSandwiches,
+  getChartData,
 } = require('../postgsql/query');
 
 
@@ -155,6 +156,29 @@ router.get('/search', authMiddleware, async (req, res) => {
   } catch (e) {
     console.error('Error in /search:', e);
     res.status(500).json({ success:false, error:'Failed to search sandwiches' });
+  }
+});
+
+router.get('/chart-data', authMiddleware, async (req, res) => {
+  try {
+    const {
+      interval = 'daily',
+      startDate,
+      endDate,
+      builders
+    } = req.query;
+    
+    const builderList = builders ? builders.split(',').filter(Boolean) : null;
+    
+    const data = await getChartData(interval, startDate, endDate, builderList);
+    
+    res.json({
+      success: true,
+      ...data
+    });
+  } catch (e) {
+    console.error('Error in /chart-data:', e);
+    res.status(500).json({ success: false, error: 'Failed to fetch chart data' });
   }
 });
 

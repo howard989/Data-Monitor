@@ -7,13 +7,14 @@ import Navbar from './components/Navbar';
 import PrivateRoute from './components/PrivateRoute';
 import ArbDetails from './components/ArbDetails';
 import SandwichStats from './components/SandwichStats';
+import { TimezoneProvider } from './context/TimezoneContext';
 
 function App() {
     return (
-
-                <Router>
-                    <Navbar />
-                    <div className="main-content">
+        <TimezoneProvider>
+            <Router>
+                <Navbar />
+                <div className="main-content">
 
                         <Routes>
                             <Route
@@ -49,8 +50,7 @@ function App() {
                         </Routes>
                     </div>
                 </Router>
-     
-    
+        </TimezoneProvider>
     );
 }
 

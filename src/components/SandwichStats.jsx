@@ -4,6 +4,10 @@ import { AuthContext } from '../context/AuthContext';
 import { authFetch, API_URL } from '../data/apiClient';
 import { fetchAttackByTx, fetchAttacksByBlock, fetchBuilderList,
   fetchSandwichStats, fetchBuilderSandwiches, fetchSandwichSearch } from '../data/apiSandwichStats';
+import { useTimezone } from '../context/TimezoneContext';
+import { formatBlockTime } from '../utils/timeFormatter';
+import TimezoneSelector from './TimezoneSelector';
+import SandwichChart from './SandwichChart';
 
 
 
@@ -16,6 +20,7 @@ const SandwichStats = () => {
 
   const { authToken, logout } = useContext(AuthContext);
   const navigate = useNavigate();
+  const { timezone } = useTimezone();
 
 
 
@@ -328,13 +333,17 @@ const SandwichStats = () => {
       <div className="max-w-7xl mx-auto">
 
         <div className="mb-8">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-yellow-600 to-amber-500 bg-clip-text text-transparent mb-2">
-            MEV Sandwich Attack Monitor
-          </h1>
-
-          <p className="text-sm text-gray-500 mt-2">
-            Last update: {lastUpdate.toLocaleTimeString()}
-          </p>
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-yellow-600 to-amber-500 bg-clip-text text-transparent mb-2">
+                MEV Sandwich Attack Monitor
+              </h1>
+              <p className="text-sm text-gray-500 mt-2">
+                Last update: {formatBlockTime(lastUpdate.getTime(), timezone, 'full')}
+              </p>
+            </div>
+            <TimezoneSelector />
+          </div>
         </div>
 
 
@@ -516,8 +525,10 @@ const SandwichStats = () => {
           )}
         </div>
 
-
-
+        {/* Chart Section */}
+        <div className="mb-8">
+          <SandwichChart dateRange={dateRange} />
+        </div>
 
         {/* Advanced Search (victim_to / bundle / profit_token / date) */}
         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-lg mb-8">
@@ -595,9 +606,9 @@ const SandwichStats = () => {
                     <th className="text-left py-2 px-3 text-gray-600 font-medium">Profit (WBNB)</th>
                     <th className="text-left py-2 px-3 text-gray-600 font-medium">Type</th>
                     <th className="text-left py-2 px-3 text-gray-600 font-medium">Victim Router</th>
-                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Front</th>
-                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Victim</th>
-                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Backruns</th>
+                    <th className="text-left py-2 px-3 text-gray-600 font-medium">FrontRun TX</th>
+                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Victim TX</th>
+                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Backruns TXS</th>
                     <th className="text-left py-2 px-3 text-gray-600 font-medium">Builder</th>
                     <th className="text-left py-2 px-3 text-gray-600 font-medium">Validator</th>
                   </tr>
@@ -637,9 +648,36 @@ const SandwichStats = () => {
                           </span>
                         )}
                       </td>
-                      <td className="py-2 px-3 font-mono text-xs">{short(r.victim_to)}</td>
-                      <td className="py-2 px-3 font-mono text-xs">{short(r.front_tx_hash)}</td>
-                      <td className="py-2 px-3 font-mono text-xs">{short(r.victim_tx_hash)}</td>
+                      <td className="py-2 px-3">
+                        <a
+                          href={`https://bscscan.com/address/${r.victim_to}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-mono text-xs text-gray-500 hover:text-gray-700 hover:underline"
+                        >
+                          {short(r.victim_to)}
+                        </a>
+                      </td>
+                      <td className="py-2 px-3">
+                        <a
+                          href={`https://bscscan.com/tx/${r.front_tx_hash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-mono text-xs text-gray-500 hover:text-gray-700 hover:underline"
+                        >
+                          {short(r.front_tx_hash)}
+                        </a>
+                      </td>
+                      <td className="py-2 px-3">
+                        <a
+                          href={`https://bscscan.com/tx/${r.victim_tx_hash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-mono text-xs text-gray-500 hover:text-gray-700 hover:underline"
+                        >
+                          {short(r.victim_tx_hash)}
+                        </a>
+                      </td>
                       <td className="py-2 px-3">
                         <div className="flex flex-col gap-1">
                           {r.backrun_txes?.slice(0, 2).map((h, i) => (
@@ -876,7 +914,7 @@ const SandwichStats = () => {
                       )}
                     </td>
                     <td className="py-3 px-4 text-gray-500 text-sm">
-                      {new Date(block.block_time || block.updated_at).toLocaleString()}
+                      {formatBlockTime(block.block_time_ms || block.block_time || block.updated_at, timezone, 'full')}
                     </td>
                     <td className="py-3 px-4 text-gray-700">{block.builder_name || '-'}</td>
                     <td className="py-3 px-4 text-gray-700">{block.validator_name || '-'}</td>
@@ -1053,7 +1091,9 @@ const SandwichStats = () => {
                                 </a>
                               </td>
                               <td className="py-2 px-3 text-gray-600 text-sm">
-                                {new Date(s.block_time).toLocaleString()}
+                                {s.block_time_ms ? 
+                                  formatBlockTime(s.block_time_ms, timezone, 'full') : 
+                                  formatBlockTime(s.block_time, timezone, 'full')}
                               </td>
                               <td className="py-2 px-3">
                                 <a

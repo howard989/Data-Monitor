@@ -145,3 +145,26 @@ export const fetchSandwichSearch = async (params = {}) => {
   if (!res.ok) throw new Error('Failed to search sandwiches');
   return res.json();
 };
+
+export const fetchChartData = async (interval = 'daily', startDate = null, endDate = null, builders = null) => {
+  const params = new URLSearchParams();
+  params.append('interval', interval);
+
+  if (startDate) 
+    params.append('startDate', startDate);
+
+  if (endDate) 
+    params.append('endDate', endDate);
+
+  if (builders && builders.length > 0) 
+    params.append('builders', builders.join(','));
+  
+  const url = `${API_URL}/api/sandwich/chart-data?${params.toString()}`;
+
+  const res = await authFetch(url, { method: 'GET' });
+
+  if (!res.ok) 
+    throw new Error('Failed to fetch chart data');
+  
+  return res.json();
+};

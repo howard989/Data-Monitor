@@ -329,6 +329,7 @@ async function getBuilderSandwiches(builderName, page = 1, limit = 50, startDate
     sa.id,
     sa.block_number,
     sa.block_time,
+    sa.block_time_ms,
     sa.front_tx_hash,
     sa.victim_tx_hash,
     sa.profit_wei,
@@ -391,7 +392,143 @@ async function getHourlyStats(hours = 24) {
   return rows;
 }
 
+async function getChartData(interval = 'daily', startDate = null, endDate = null, builders = null) {
+  // Default to last 30 days if no date range
+  if (!startDate && !endDate) {
+    const now = new Date();
+    endDate = now.toISOString().split('T')[0];
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    startDate = thirtyDaysAgo.toISOString().split('T')[0];
+  }
+  
+  const endDateTime = endDate.includes('T') ? endDate : `${endDate}T23:59:59`;
+  
+  // Determine date truncation based on interval
+  const dateTrunc = interval === 'hourly' ? 'hour' : 
+                    interval === 'weekly' ? 'week' : 
+                    interval === 'monthly' ? 'month' : 'day';
+  
+  // If no builders specified, get top 5
+  let builderList = builders;
+  if (!builderList) {
+    const topBuildersSql = `
+      SELECT 
+        CASE
+          WHEN builder_kind = 'builder' THEN builder_group
+          WHEN builder_kind = 'bribe' THEN builder_bribe_name
+        END AS builder_name,
+        COUNT(*) as total_blocks
+      FROM ${TBL_OVERVIEW}
+      WHERE block_time >= $1::timestamp AND block_time <= $2::timestamp
+        AND builder_address IS NOT NULL
+      GROUP BY 1
+      ORDER BY total_blocks DESC
+      LIMIT 5;
+    `;
+    const { rows } = await pool.query(topBuildersSql, [startDate, endDateTime]);
+    builderList = rows.map(r => r.builder_name);
+  }
+  
+  // Get time series data for each builder
+  const sql = `
+    WITH time_series AS (
+      SELECT 
+        date_trunc('${dateTrunc}', block_time) as time_bucket,
+        CASE
+          WHEN builder_kind = 'builder' THEN builder_group
+          WHEN builder_kind = 'bribe' THEN builder_bribe_name
+        END AS builder_name,
+        COUNT(*) as total_blocks,
+        COUNT(*) FILTER (WHERE has_sandwich) as sandwich_blocks
+      FROM ${TBL_OVERVIEW}
+      WHERE block_time >= $1::timestamp AND block_time <= $2::timestamp
+        AND builder_address IS NOT NULL
+        AND (
+          (builder_kind = 'builder' AND builder_group = ANY($3)) OR
+          (builder_kind = 'bribe' AND builder_bribe_name = ANY($3))
+        )
+      GROUP BY 1, 2
+    ),
+    overall AS (
+      SELECT 
+        date_trunc('${dateTrunc}', block_time) as time_bucket,
+        COUNT(*) as total_blocks,
+        COUNT(*) FILTER (WHERE has_sandwich) as total_sandwich_blocks
+      FROM ${TBL_OVERVIEW}
+      WHERE block_time >= $1::timestamp AND block_time <= $2::timestamp
+      GROUP BY 1
+    )
+    SELECT 
+      to_char(ts.time_bucket AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as date,
+      ts.builder_name,
+      ts.total_blocks,
+      ts.sandwich_blocks,
+      CASE 
+        WHEN ts.total_blocks > 0 
+        THEN ROUND(100.0 * ts.sandwich_blocks / ts.total_blocks, 2)
+        ELSE 0 
+      END as sandwich_rate,
+      o.total_blocks as overall_total_blocks,
+      o.total_sandwich_blocks as overall_sandwich_blocks
+    FROM time_series ts
+    JOIN overall o ON o.time_bucket = ts.time_bucket
+    ORDER BY ts.time_bucket, ts.builder_name;
+  `;
+  
+  const { rows } = await pool.query(sql, [startDate, endDateTime, builderList]);
+  
+  // Transform data for chart format
+  const chartData = {};
+  const summary = {
+    builders: builderList,
+    totalBlocks: 0,
+    totalSandwiches: 0,
+    avgRate: 0
+  };
+  
+  rows.forEach(row => {
+    if (!chartData[row.date]) {
+      chartData[row.date] = {
+        date: row.date,
+        overall_total: row.overall_total_blocks,
+        overall_sandwiches: row.overall_sandwich_blocks,
+        overall_rate: row.overall_total_blocks > 0 
+          ? Number((100.0 * row.overall_sandwich_blocks / row.overall_total_blocks).toFixed(2))
+          : 0
+      };
+    }
+    chartData[row.date][row.builder_name] = Number(row.sandwich_rate);
+    summary.totalBlocks += Number(row.total_blocks);
+    summary.totalSandwiches += Number(row.sandwich_blocks);
+  });
+  
+  const series = Object.values(chartData);
+  summary.avgRate = summary.totalBlocks > 0 
+    ? Number((100.0 * summary.totalSandwiches / summary.totalBlocks).toFixed(2))
+    : 0;
+  
+  return {
+    series,
+    summary,
+    interval,
+    dateRange: { start: startDate, end: endDate }
+  };
+}
+
 async function searchSandwiches({ victim_to = null, is_bundle = null, profit_token = null, builder = null, startDate = null, endDate = null, page = 1, limit = 50 }) {
+  // Maximum 100 pages 
+  const MAX_PAGES = 100;
+  if (page > MAX_PAGES) {
+    return {
+      success: false,
+      error: `Exceeded maximum page limit (${MAX_PAGES}). Please use date filters to narrow down the results.`,
+      maxPages: MAX_PAGES,
+      data: [],
+      page,
+      limit
+    };
+  }
+  
   const offset = (page - 1) * limit;
 
   const params = [];
@@ -428,6 +565,7 @@ async function searchSandwiches({ victim_to = null, is_bundle = null, profit_tok
       sa.id,
       sa.block_number,
       sa.block_time,
+      sa.block_time_ms,
       sa.front_tx_hash,
       sa.victim_tx_hash,
       sa.profit_wei,
@@ -454,8 +592,31 @@ async function searchSandwiches({ victim_to = null, is_bundle = null, profit_tok
     LIMIT $${params.length-1} OFFSET $${params.length};
   `;
 
-  const { rows } = await pool.query(sql, params);
-  return { success: true, data: rows, page, limit };
+  // count query for total results
+  const countParams = params.slice(0, -2); // Exclude limit and offset
+  const countSql = `
+    SELECT COUNT(DISTINCT sa.id) as total
+    FROM public.sandwich_attack sa
+    JOIN ${TBL_OVERVIEW} bo ON bo.block_number = sa.block_number
+    WHERE ${where};
+  `;
+  
+  const [countRes, dataRes] = await Promise.all([
+    pool.query(countSql, countParams),
+    pool.query(sql, params)
+  ]);
+  
+  const total = parseInt(countRes.rows[0]?.total || 0);
+  const totalPages = Math.ceil(total / limit);
+  
+  return { 
+    success: true, 
+    data: dataRes.rows, 
+    page, 
+    limit,
+    total,
+    totalPages
+  };
 }
 
 module.exports = {
@@ -467,5 +628,6 @@ module.exports = {
   getBlockMeta,
   getBuilderList,
   getBuilderSandwiches,
-  searchSandwiches
+  searchSandwiches,
+  getChartData
 };
