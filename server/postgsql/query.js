@@ -451,14 +451,12 @@ async function getChartData(interval = 'daily', startDate = null, endDate = null
   if (!builderList) {
     const topBuildersSql = `
       SELECT 
-        CASE
-          WHEN builder_kind = 'builder' THEN builder_group
-          WHEN builder_kind = 'bribe' THEN builder_bribe_name
-        END AS builder_name,
+        builder_group AS builder_name,
         COUNT(*) as total_blocks
       FROM ${TBL_OVERVIEW}
       WHERE block_time >= $1::timestamp AND block_time <= $2::timestamp
-        AND builder_address IS NOT NULL
+        AND builder_kind = 'builder'
+        AND builder_group IS NOT NULL
       GROUP BY 1
       ORDER BY total_blocks DESC
       LIMIT 5;
@@ -472,19 +470,13 @@ async function getChartData(interval = 'daily', startDate = null, endDate = null
     WITH time_series AS (
       SELECT 
         date_trunc('${dateTrunc}', block_time) as time_bucket,
-        CASE
-          WHEN builder_kind = 'builder' THEN builder_group
-          WHEN builder_kind = 'bribe' THEN builder_bribe_name
-        END AS builder_name,
+        builder_group AS builder_name,
         COUNT(*) as total_blocks,
         COUNT(*) FILTER (WHERE has_sandwich) as sandwich_blocks
       FROM ${TBL_OVERVIEW}
       WHERE block_time >= $1::timestamp AND block_time <= $2::timestamp
-        AND builder_address IS NOT NULL
-        AND (
-          (builder_kind = 'builder' AND builder_group = ANY($3)) OR
-          (builder_kind = 'bribe' AND builder_bribe_name = ANY($3))
-        )
+        AND builder_kind = 'builder'
+        AND builder_group = ANY($3)
       GROUP BY 1, 2
     ),
     overall AS (
