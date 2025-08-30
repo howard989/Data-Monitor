@@ -446,7 +446,7 @@ async function getChartData(interval = 'daily', startDate = null, endDate = null
                     interval === 'weekly' ? 'week' : 
                     interval === 'monthly' ? 'month' : 'day';
   
-  // If no builders specified, get top 5
+  // Top 10 builders
   let builderList = builders;
   if (!builderList) {
     const topBuildersSql = `
@@ -459,7 +459,7 @@ async function getChartData(interval = 'daily', startDate = null, endDate = null
         AND builder_group IS NOT NULL
       GROUP BY 1
       ORDER BY total_blocks DESC
-      LIMIT 5;
+      LIMIT 10;
     `;
     const { rows } = await pool.query(topBuildersSql, [startDate, endDateTime]);
     builderList = rows.map(r => r.builder_name);
