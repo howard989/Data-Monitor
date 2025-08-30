@@ -93,19 +93,43 @@ async function getSandwichStats(builderName = null, startDate = null, endDate = 
   `;
 
   const breakdownSql = `
+    WITH builder_stats AS (
+      SELECT
+        CASE
+          WHEN bo.builder_kind = 'builder' THEN bo.builder_group
+          WHEN bo.builder_kind = 'bribe'   THEN bo.builder_bribe_name
+          ELSE NULL
+        END AS builder_name,
+        bo.builder_kind,
+        bo.block_number,
+        bo.has_sandwich
+      FROM ${TBL_OVERVIEW} bo
+      WHERE bo.builder_address IS NOT NULL ${dateFilter}
+    ),
+    profit_stats AS (
+      SELECT
+        CASE
+          WHEN bo.builder_kind = 'builder' THEN bo.builder_group
+          WHEN bo.builder_kind = 'bribe'   THEN bo.builder_bribe_name
+        END AS builder_name,
+        COALESCE(SUM(sa.profit_wei::numeric), 0) AS total_profit_wei
+      FROM ${TBL_OVERVIEW} bo
+      LEFT JOIN public.sandwich_attack sa ON sa.block_number = bo.block_number
+      WHERE bo.builder_address IS NOT NULL 
+        AND bo.has_sandwich = true
+        ${dateFilter}
+      GROUP BY 1
+    )
     SELECT
-      CASE
-        WHEN builder_kind = 'builder' THEN builder_group
-        WHEN builder_kind = 'bribe'   THEN builder_bribe_name
-        ELSE NULL
-      END AS builder_name,
-      builder_kind,
+      bs.builder_name,
+      bs.builder_kind,
       COUNT(*)::bigint AS blocks,
-      COUNT(*) FILTER (WHERE has_sandwich)::bigint AS sandwich_blocks
-    FROM ${TBL_OVERVIEW}
-    WHERE builder_address IS NOT NULL ${dateFilter}
-    GROUP BY 1,2
-    ORDER BY (CASE WHEN COUNT(*) > 0 THEN 100.0 * COUNT(*) FILTER (WHERE has_sandwich) / COUNT(*) ELSE 0 END) DESC, blocks DESC
+      COUNT(*) FILTER (WHERE bs.has_sandwich)::bigint AS sandwich_blocks,
+      COALESCE(ps.total_profit_wei, 0)::text AS total_profit_wei
+    FROM builder_stats bs
+    LEFT JOIN profit_stats ps ON ps.builder_name = bs.builder_name
+    GROUP BY 1, 2, ps.total_profit_wei
+    ORDER BY (CASE WHEN COUNT(*) > 0 THEN 100.0 * COUNT(*) FILTER (WHERE bs.has_sandwich) / COUNT(*) ELSE 0 END) DESC, blocks DESC
     LIMIT 100;
   `;
 
@@ -119,7 +143,8 @@ async function getSandwichStats(builderName = null, startDate = null, endDate = 
     builder_kind: r.builder_kind,
     blocks: Number(r.blocks),
     sandwich_blocks: Number(r.sandwich_blocks),
-    sandwich_percentage: r.blocks ? Number((100 * Number(r.sandwich_blocks) / Number(r.blocks)).toFixed(6)) : 0
+    sandwich_percentage: r.blocks ? Number((100 * Number(r.sandwich_blocks) / Number(r.blocks)).toFixed(6)) : 0,
+    total_profit_wei: r.total_profit_wei || "0"
   }));
 
   const total_blocks = Number(b.total_blocks || 0);

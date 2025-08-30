@@ -9,14 +9,14 @@ import { useTimezone } from '../context/TimezoneContext';
 import { formatBlockTime } from '../utils/timeFormatter';
 
 const COLORS = [
-  '#f59e0b', // amber-500
-  '#eab308', // yellow-500
-  '#84cc16', // lime-500
-  '#10b981', // emerald-500
-  '#06b6d4', // cyan-500
-  '#3b82f6', // blue-500
-  '#8b5cf6', // violet-500
-  '#ec4899', // pink-500
+  '#f59e0b', 
+  '#eab308', 
+  '#84cc16', 
+  '#10b981', 
+  '#06b6d4', 
+  '#3b82f6', 
+  '#8b5cf6', 
+  '#ec4899', 
 ];
 
 const SandwichChart = ({ dateRange }) => {
@@ -25,23 +25,27 @@ const SandwichChart = ({ dateRange }) => {
   const [interval, setInterval] = useState('daily');
   const [chartType, setChartType] = useState('line');
   const [selectedBuilders, setSelectedBuilders] = useState([]);
+  const [availableBuilders, setAvailableBuilders] = useState([]);
+  const [builderFilter, setBuilderFilter] = useState('all'); 
   const { timezone } = useTimezone();
 
   useEffect(() => {
     loadChartData();
-  }, [dateRange.start, dateRange.end, interval]);
+  }, [dateRange.start, dateRange.end, interval, builderFilter]);
 
   const loadChartData = async () => {
     setLoading(true);
     try {
+      const buildersToFetch = builderFilter !== 'all' ? [builderFilter] : null;
+      
       const data = await fetchChartData(
         interval,
         dateRange.start,
         dateRange.end,
-        selectedBuilders.length > 0 ? selectedBuilders : null
+        buildersToFetch
       );
       
-      // Format dates for display
+   
       if (data.series) {
         data.series = data.series.map(item => ({
           ...item,
@@ -52,6 +56,10 @@ const SandwichChart = ({ dateRange }) => {
       }
       
       setChartData(data);
+      
+      if (data.summary?.builders) {
+        setAvailableBuilders(data.summary.builders);
+      }
     } catch (error) {
       console.error('Failed to load chart data:', error);
     } finally {
@@ -86,6 +94,18 @@ const SandwichChart = ({ dateRange }) => {
         <h2 className="text-2xl font-bold text-gray-800">Sandwich Rate Trends</h2>
         
         <div className="flex gap-3">
+          {/* Builder Selector */}
+          <select
+            value={builderFilter}
+            onChange={(e) => setBuilderFilter(e.target.value)}
+            className="px-3 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+          >
+            <option value="all">All Top Builders</option>
+            {availableBuilders.map(builder => (
+              <option key={builder} value={builder}>{builder}</option>
+            ))}
+          </select>
+
           {/* Interval Selector */}
           <select
             value={interval}

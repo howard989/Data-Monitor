@@ -8,6 +8,7 @@ import { useTimezone } from '../context/TimezoneContext';
 import { formatBlockTime } from '../utils/timeFormatter';
 import TimezoneSelector from './TimezoneSelector';
 import SandwichChart from './SandwichChart';
+import useBnbUsdPrice from '../hooks/useBnbUsdPrice';
 
 
 
@@ -21,6 +22,7 @@ const SandwichStats = () => {
   const { authToken, logout } = useContext(AuthContext);
   const navigate = useNavigate();
   const { timezone } = useTimezone();
+  const { bnbUsdt } = useBnbUsdPrice(5000); 
 
 
 
@@ -320,6 +322,20 @@ const SandwichStats = () => {
     return `${parseFloat(num).toFixed(4)}%`;
   };
 
+  const formatProfitUSD = (weiString) => {
+    if (!weiString || weiString === "0" || !bnbUsdt) return "$0";
+    try {
+      const bnb = Number(weiString) / 1e18;
+      const usd = bnb * bnbUsdt;
+      if (usd < 0.01) return "<$0.01";
+      if (usd < 1000) return `$${usd.toFixed(2)}`;
+      if (usd < 1000000) return `$${(usd / 1000).toFixed(1)}K`;
+      return `$${(usd / 1000000).toFixed(2)}M`;
+    } catch {
+      return "-";
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white flex items-center justify-center">
@@ -342,7 +358,14 @@ const SandwichStats = () => {
                 Last update: {formatBlockTime(lastUpdate.getTime(), timezone, 'full')}
               </p>
             </div>
-            <TimezoneSelector />
+            <div className="flex items-center gap-4">
+              {bnbUsdt && (
+                <div className="text-sm text-gray-600">
+                  1 BNB ≈ ${bnbUsdt.toFixed(2)} USD
+                </div>
+              )}
+              <TimezoneSelector />
+            </div>
           </div>
         </div>
 
@@ -490,6 +513,7 @@ const SandwichStats = () => {
                           <th className="text-left py-2 px-2 text-gray-500">Blocks</th>
                           <th className="text-left py-2 px-2 text-gray-500">Sandwich</th>
                           <th className="text-left py-2 px-2 text-gray-500">Rate</th>
+                          <th className="text-left py-2 px-2 text-gray-500">Profit (USD)</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -499,6 +523,7 @@ const SandwichStats = () => {
                             <td className="py-2 px-2 text-gray-700">{formatNumber(b.blocks)}</td>
                             <td className="py-2 px-2 text-gray-700">{formatNumber(b.sandwich_blocks)}</td>
                             <td className="py-2 px-2 text-amber-600 font-semibold">{b.sandwich_percentage.toFixed(4)}%</td>
+                            <td className="py-2 px-2 text-green-600 font-semibold">{formatProfitUSD(b.total_profit_wei)}</td>
                           </tr>
                         ))}
                       </tbody>
