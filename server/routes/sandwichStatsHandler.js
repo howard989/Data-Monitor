@@ -8,6 +8,7 @@ const {
   getBlockSandwiches,
   getHourlyStats,
   getBuilderList,
+  getEarliestBlock,
   getBuilderSandwiches,
   searchSandwiches,
   getChartData,
@@ -19,8 +20,19 @@ router.get('/stats', authMiddleware, async (req, res) => {
     const builder = req.query.builder ? String(req.query.builder) : null;
     const startDate = req.query.startDate ? String(req.query.startDate) : null;
     const endDate = req.query.endDate ? String(req.query.endDate) : null;
+    const bundleFilter = req.query.bundleFilter || 'all';
+    const frontrunRouter = req.query.frontrunRouter || 'all';
     
-    const stats = await getSandwichStats(builder, startDate, endDate);
+ 
+    let amountRange = null;
+    if (req.query.amountMin !== undefined || req.query.amountMax !== undefined) {
+      amountRange = {
+        min: req.query.amountMin ? parseFloat(req.query.amountMin) : undefined,
+        max: req.query.amountMax ? parseFloat(req.query.amountMax) : undefined
+      };
+    }
+    
+    const stats = await getSandwichStats(builder, startDate, endDate, bundleFilter, amountRange, frontrunRouter);
     
     
     if (!startDate && !endDate) {
@@ -48,6 +60,16 @@ router.get('/builders', authMiddleware, async (req, res) => {
   } catch (e) {
     console.error('Error in /builders:', e);
     res.status(500).json({ success: false, error: 'Failed to fetch builder list' });
+  }
+});
+
+router.get('/earliest-block', authMiddleware, async (req, res) => {
+  try {
+    const data = await getEarliestBlock();
+    res.json({ success: true, data });
+  } catch (e) {
+    console.error('Error in /earliest-block:', e);
+    res.status(500).json({ success: false, error: 'Failed to fetch earliest block' });
   }
 });
 
@@ -139,6 +161,7 @@ router.get('/search', authMiddleware, async (req, res) => {
       endDate,
       page = '1',
       limit = '50',
+      sortBy = 'time'
     } = req.query;
 
     const result = await searchSandwiches({
@@ -150,6 +173,7 @@ router.get('/search', authMiddleware, async (req, res) => {
       endDate: endDate || null,
       page: Math.max(1, parseInt(page)),
       limit: Math.min(100, Math.max(1, parseInt(limit))),
+      sortBy: sortBy || 'time'
     });
 
     res.json(result);
@@ -165,12 +189,23 @@ router.get('/chart-data', authMiddleware, async (req, res) => {
       interval = 'daily',
       startDate,
       endDate,
-      builders
+      builders,
+      bundleFilter = 'all',
+      frontrunRouter = 'all'
     } = req.query;
     
     const builderList = builders ? builders.split(',').filter(Boolean) : null;
     
-    const data = await getChartData(interval, startDate, endDate, builderList);
+
+    let amountRange = null;
+    if (req.query.amountMin !== undefined || req.query.amountMax !== undefined) {
+      amountRange = {
+        min: req.query.amountMin ? parseFloat(req.query.amountMin) : undefined,
+        max: req.query.amountMax ? parseFloat(req.query.amountMax) : undefined
+      };
+    }
+    
+    const data = await getChartData(interval, startDate, endDate, builderList, bundleFilter, amountRange, frontrunRouter);
     
     res.json({
       success: true,

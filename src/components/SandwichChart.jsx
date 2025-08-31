@@ -33,7 +33,7 @@ const chartTypeOptions = [
   { value: 'composed', label: 'Combined View' }
 ];
 
-const SandwichChart = ({ dateRange }) => {
+const SandwichChart = ({ dateRange, bundleFilter, amountRange, frontrunRouter }) => {
   const [chartData, setChartData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [interval, setInterval] = useState('daily');
@@ -53,7 +53,7 @@ const SandwichChart = ({ dateRange }) => {
 
   useEffect(() => {
     loadChartData();
-  }, [dateRange.start, dateRange.end, interval, builderFilter]);
+  }, [dateRange.start, dateRange.end, interval, builderFilter, bundleFilter, amountRange, frontrunRouter]);
 
   const loadChartData = async () => {
     setLoading(true);
@@ -64,7 +64,10 @@ const SandwichChart = ({ dateRange }) => {
         interval,
         dateRange.start,
         dateRange.end,
-        buildersToFetch
+        buildersToFetch,
+        bundleFilter,
+        amountRange,
+        frontrunRouter
       );
 
       if (data.series) {
@@ -206,6 +209,8 @@ const SandwichChart = ({ dateRange }) => {
             <YAxis
               label={{ value: 'Sandwich Rate (%)', angle: -90, position: 'insideLeft' }}
               tick={{ fontSize: isMobile ? 10 : 12 }}
+              domain={[0, 'dataMax']}
+              scale="linear"
             />
             <Tooltip
               formatter={(value) => `${value}%`}
@@ -250,6 +255,8 @@ const SandwichChart = ({ dateRange }) => {
             <YAxis
               label={{ value: 'Sandwich Rate (%)', angle: -90, position: 'insideLeft' }}
               tick={{ fontSize: isMobile ? 10 : 12 }}
+              domain={[0, 'dataMax']}
+              scale="linear"
             />
             <Tooltip
               formatter={(value) => `${value}%`}

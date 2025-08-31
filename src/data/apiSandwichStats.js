@@ -100,6 +100,16 @@ export const fetchBuilderList = async () => {
 
   return res.json(); 
 };
+
+export const fetchEarliestBlock = async () => {
+  const res = await authFetch(`${API_URL}/api/sandwich/earliest-block`, { method: 'GET' });
+  
+  if (!res.ok) {
+    throw new Error('Failed to fetch earliest block');
+  }
+
+  return res.json();
+};
 export const fetchSandwichStats = async (builderName, startDate = null, endDate = null) => {
   let url = builderName
     ? `${API_URL}/api/sandwich/stats?builder=${encodeURIComponent(builderName)}`
@@ -146,7 +156,15 @@ export const fetchSandwichSearch = async (params = {}) => {
   return res.json();
 };
 
-export const fetchChartData = async (interval = 'daily', startDate = null, endDate = null, builders = null) => {
+export const fetchChartData = async (
+  interval = 'daily', 
+  startDate = null, 
+  endDate = null, 
+  builders = null,
+  bundleFilter = 'all',
+  amountRange = null,
+  frontrunRouter = 'all'
+) => {
   const params = new URLSearchParams();
   params.append('interval', interval);
 
@@ -158,6 +176,17 @@ export const fetchChartData = async (interval = 'daily', startDate = null, endDa
 
   if (builders && builders.length > 0) 
     params.append('builders', builders.join(','));
+    
+  if (bundleFilter && bundleFilter !== 'all')
+    params.append('bundleFilter', bundleFilter);
+    
+  if (amountRange) {
+    if (amountRange.min) params.append('amountMin', amountRange.min);
+    if (amountRange.max) params.append('amountMax', amountRange.max);
+  }
+  
+  if (frontrunRouter && frontrunRouter !== 'all')
+    params.append('frontrunRouter', frontrunRouter);
   
   const url = `${API_URL}/api/sandwich/chart-data?${params.toString()}`;
 

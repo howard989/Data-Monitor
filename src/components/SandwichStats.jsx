@@ -1,16 +1,19 @@
-/* global BigInt */
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
+import { usePause } from '../context/PauseContext';
+import { usePausableRequest } from '../hooks/usePausableRequest';
 import { authFetch, API_URL } from '../data/apiClient';
-import { fetchAttackByTx, fetchAttacksByBlock, fetchBuilderList,
-  fetchSandwichStats, fetchBuilderSandwiches, fetchSandwichSearch } from '../data/apiSandwichStats';
+import {
+  fetchAttackByTx, fetchAttacksByBlock, fetchBuilderList,
+  fetchSandwichStats, fetchBuilderSandwiches, fetchSandwichSearch, fetchEarliestBlock
+} from '../data/apiSandwichStats';
 import { useTimezone } from '../context/TimezoneContext';
 import { formatBlockTime } from '../utils/timeFormatter';
 import TimezoneSelector from './TimezoneSelector';
 import SandwichChart from './SandwichChart';
 import useBnbUsdPrice from '../hooks/useBnbUsdPrice';
-import { Select, Spin, Input } from 'antd';
+import { Select, Input } from 'antd';
 import DateRangePicker from './common/DateRangePicker';
 
 const { Option } = Select;
@@ -39,13 +42,20 @@ const getTokenSymbol = (address) => {
 const SandwichStats = () => {
   const [stats, setStats] = useState(null);
   const [recentBlocks, setRecentBlocks] = useState([]);
-  const [loading, setLoading] = useState(true);
+
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [blocksLoading, setBlocksLoading] = useState(true);
+  const [buildersLoading, setBuildersLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(new Date());
 
   const { authToken, logout } = useContext(AuthContext);
   const navigate = useNavigate();
   const { timezone } = useTimezone();
-  const { bnbUsdt } = useBnbUsdPrice(5000); 
+  const { bnbUsdt } = useBnbUsdPrice(600000);
+
+
+  const { isPaused, toggle } = usePause();
+  const { executePausableRequest } = usePausableRequest();
 
 
 
@@ -77,7 +87,7 @@ const SandwichStats = () => {
   const [builders, setBuilders] = useState([]);
   const [selectedBuilder, setSelectedBuilder] = useState('');
   const [builderStats, setBuilderStats] = useState(null);
-  
+
   const [showBuilderDetails, setShowBuilderDetails] = useState(false);
   const [builderSandwiches, setBuilderSandwiches] = useState([]);
   const [builderPage, setBuilderPage] = useState(1);
@@ -88,10 +98,14 @@ const SandwichStats = () => {
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const [builderDateRange, setBuilderDateRange] = useState({ start: '', end: '' });
 
+  const [bundleFilter, setBundleFilter] = useState('all');
+  const [amountRange, setAmountRange] = useState({ min: '', max: '' });
+  const [frontrunRouter, setFrontrunRouter] = useState('all');
+
 
   const [filterVictimTo, setFilterVictimTo] = useState('');
   const [filterIsBundle, setFilterIsBundle] = useState('');
-  const [filterProfitToken, setFilterProfitToken] = useState('');
+  const [filterSortBy, setFilterSortBy] = useState('time');
   const [searchDateRange, setSearchDateRange] = useState({ start: '', end: '' });
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -117,8 +131,13 @@ const SandwichStats = () => {
   };
 
   const loadBuilders = async () => {
-    const { data } = await fetchBuilderList();
-    setBuilders(data || []);
+    try {
+      setBuildersLoading(true);
+      const { data } = await fetchBuilderList();
+      setBuilders(data || []);
+    } finally {
+      setBuildersLoading(false);
+    }
   };
 
   const loadBuilderStats = async (name, startDate = null, endDate = null) => {
@@ -131,7 +150,7 @@ const SandwichStats = () => {
     try {
       const result = await fetchBuilderSandwiches(builder, page, 50, startDate, endDate);
       if (result.success === false && result.maxPages) {
-        // Handle max pages exceeded error
+
         alert(result.error || `Maximum ${result.maxPages} pages allowed. Please use date filter to narrow down results.`);
         setBuilderSandwiches([]);
         setBuilderTotal(0);
@@ -139,9 +158,9 @@ const SandwichStats = () => {
       } else if (result.success || result.data) {
         setBuilderSandwiches(result.data || []);
         setBuilderTotal(result.total || 0);
-        setBuilderTotalPages(Math.min(result.totalPages || 0, 100)); // Cap at 100 pages
+        setBuilderTotalPages(Math.min(result.totalPages || 0, 100));
         setBuilderPage(page);
-        // Update date range if returned from backend
+
         if (result.dateRange && !startDate && !endDate) {
           setBuilderDateRange(result.dateRange);
         }
@@ -159,54 +178,97 @@ const SandwichStats = () => {
     navigate('/login');
   };
 
-  const fetchStats = async (startDate = null, endDate = null) => {
+  const fetchStats = useCallback(async (startDate = null, endDate = null, options = {}) => {
+    const { silent = false } = options;
+    if (isPaused) return;
+
+    if (!silent) setStatsLoading(true);
+
     try {
       let url = `${API_URL}/api/sandwich/stats`;
+      const params = new URLSearchParams();
+
       if (startDate && endDate) {
-        url += `?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`;
+        params.append('startDate', startDate);
+        params.append('endDate', endDate);
       }
 
-      const statsRes = await authFetch(url, {
-        method: 'GET'
-      });
+      if (bundleFilter !== 'all') {
+        params.append('bundleFilter', bundleFilter);
+      }
+      if (amountRange.min) {
+        params.append('amountMin', amountRange.min);
+      }
+      if (amountRange.max) {
+        params.append('amountMax', amountRange.max);
+      }
+      if (frontrunRouter !== 'all') {
+        params.append('frontrunRouter', frontrunRouter);
+      }
 
-      if (!statsRes.ok) {
-        if (statsRes.status === 401) handleUnauthorized();
-        return;
+      const queryString = params.toString();
+      if (queryString) {
+        url += '?' + queryString;
       }
-      const statsData = await statsRes.json();
-      setStats(statsData.data);
-      setLastUpdate(new Date());
-    } catch (error) {
-      if (error.status === 401) {
-        handleUnauthorized();
-      } else {
-        console.error('Error fetching stats:', error);
-      }
+
+      await executePausableRequest(
+        async () => authFetch(url, { method: 'GET' }),
+        {
+          onSuccess: async (statsRes) => {
+            if (!statsRes.ok) {
+              if (statsRes.status === 401) handleUnauthorized();
+              return;
+            }
+            const statsData = await statsRes.json();
+            setStats(statsData.data);
+            setLastUpdate(new Date());
+          },
+          onError: (error) => {
+            if (error.status === 401) {
+              handleUnauthorized();
+            } else {
+              console.error('Error fetching stats:', error);
+            }
+          },
+          retryOnResume: !silent
+        }
+      );
     } finally {
-      setLoading(false);
+      if (!silent) setStatsLoading(false);
     }
-  };
+  }, [isPaused, executePausableRequest, authFetch, bundleFilter, amountRange.min, amountRange.max, frontrunRouter]);
 
-  const fetchBlocks = async () => {
+  const fetchBlocks = useCallback(async () => {
+    if (isPaused) return;
+
+    setBlocksLoading(true);
+
     try {
-      const blocksRes = await authFetch(`${API_URL}/api/sandwich/recent?limit=20`, {
-        method: 'GET'
-      });
-      if (!blocksRes.ok) {
-        if (blocksRes.status === 401) handleUnauthorized();
-        return;
-      }
-      const blocksData = await blocksRes.json();
-      setRecentBlocks(blocksData.data);
-    } catch (error) {
-      if (error.status === 401) {
-        handleUnauthorized();
-      } else {
-        console.error('Error fetching blocks:', error);
-      }
+      await executePausableRequest(
+        async () => authFetch(`${API_URL}/api/sandwich/recent?limit=20`, { method: 'GET' }),
+        {
+          onSuccess: async (blocksRes) => {
+            if (!blocksRes.ok) {
+              if (blocksRes.status === 401) handleUnauthorized();
+              return;
+            }
+            const blocksData = await blocksRes.json();
+            setRecentBlocks(blocksData.data);
+          },
+          onError: (error) => {
+            if (error.status === 401) {
+              handleUnauthorized();
+            } else {
+              console.error('Error fetching blocks:', error);
+            }
+          },
+          retryOnResume: true
+        }
+      );
+    } finally {
+      setBlocksLoading(false);
     }
-  };
+  }, [isPaused, executePausableRequest, authFetch]);
 
   const onSearchTx = async () => {
     if (!txQuery) return;
@@ -261,11 +323,11 @@ const SandwichStats = () => {
 
   const runSearch = async (page = 1) => {
     setSearchLoading(true);
+    setHasSearched(true);
     try {
-      const params = { page, limit: searchLimit };
+      const params = { page, limit: searchLimit, sortBy: filterSortBy };
       if (filterVictimTo) params.victim_to = filterVictimTo.trim().toLowerCase();
-      if (filterIsBundle !== '') params.is_bundle = filterIsBundle;
-      if (filterProfitToken) params.profit_token = filterProfitToken.trim().toLowerCase();
+      if (filterIsBundle !== '') params.is_bundle = (filterIsBundle === 'true');
       if (searchDateRange.start && searchDateRange.end) {
         params.startDate = searchDateRange.start;
         params.endDate = searchDateRange.end;
@@ -286,47 +348,92 @@ const SandwichStats = () => {
   const clearSearch = () => {
     setFilterVictimTo('');
     setFilterIsBundle('');
-    setFilterProfitToken('');
+    setFilterSortBy('time');
     setSearchDateRange({ start: '', end: '' });
     setSearchResults([]);
     setSearchPage(1);
+    setHasSearched(false);
   };
+
+
+
 
   useEffect(() => {
     if (!authToken) {
       navigate('/login');
       return;
     }
-    fetchStats(dateRange.start, dateRange.end);
-    fetchBlocks();
+
+
+    Promise.allSettled([
+      fetchStats(dateRange.start, dateRange.end),
+      fetchBlocks(),
+      loadBuilders()
+    ]).catch(console.error);
+  }, [authToken]);
+
+
+  useEffect(() => {
+    if (!authToken || isPaused) return;
+
+
+    if (dateRange.start || dateRange.end) {
+      fetchStats(dateRange.start, dateRange.end);
+    }
+
 
     const statsInterval = setInterval(() => {
-      fetchStats(dateRange.start, dateRange.end);
-    }, 5000);
-
-    const blocksInterval = setInterval(() => {
+      fetchStats(dateRange.start, dateRange.end, { silent: true });
       fetchBlocks();
+      setLastUpdate(new Date());
     }, 60000);
 
     return () => {
       clearInterval(statsInterval);
-      clearInterval(blocksInterval);
     };
-  }, [authToken, dateRange.start, dateRange.end]); 
+  }, [authToken, isPaused, dateRange.start, dateRange.end, fetchStats, fetchBlocks]);
+
 
   useEffect(() => {
-    if (!authToken) return;
-    loadBuilders();
-  }, [authToken]);
+    if (!authToken || isPaused) return;
+    fetchStats(dateRange.start, dateRange.end, { silent: false });
+    fetchBlocks();
+    setLastUpdate(new Date());
+  }, [authToken, isPaused]);
+
+
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   useEffect(() => {
-    if (!authToken) return;
-    if (selectedBuilder) {
-      loadBuilderStats(selectedBuilder, dateRange.start, dateRange.end);
-    } else {
-      setBuilderStats(null);
+    if (!authToken || isPaused) return;
+
+    if (isInitialLoad) {
+      setIsInitialLoad(false);
+      return;
     }
-  }, [selectedBuilder, authToken, dateRange.start, dateRange.end]); 
+
+    fetchStats(dateRange.start, dateRange.end);
+  }, [bundleFilter, amountRange.min, amountRange.max, frontrunRouter, isPaused]);
+
+  useEffect(() => {
+    if (!authToken) return;
+    if (!selectedBuilder) {
+      setBuilderStats(null);
+      return;
+    }
+    if (isPaused) return;
+    loadBuilderStats(selectedBuilder, dateRange.start, dateRange.end);
+  }, [selectedBuilder, authToken, dateRange.start, dateRange.end, isPaused]);
+
+
+  const [hasSearched, setHasSearched] = useState(false);
+
+
+  useEffect(() => {
+    if (hasSearched && !isPaused) {
+      runSearch(1);
+    }
+  }, [filterSortBy, searchDateRange.start, searchDateRange.end, isPaused]);
 
   const formatNumber = (num) => {
     return new Intl.NumberFormat('en-US').format(num);
@@ -346,6 +453,18 @@ const SandwichStats = () => {
     return totalUSD;
   };
 
+  const calculateTotalSandwichCount = (builder) => {
+    if (!builder || !builder.profit_breakdown) return 0;
+    return builder.profit_breakdown.reduce((sum, item) => sum + (item.count || 0), 0);
+  };
+
+  const calculateAvgProfitPerTx = (builder) => {
+    const totalUSD = calculateTotalUSD(builder);
+    const totalCount = calculateTotalSandwichCount(builder);
+    if (totalCount === 0) return 0;
+    return totalUSD / totalCount;
+  };
+
   const formatProfitUSD = (totalUSD) => {
     if (!totalUSD || totalUSD === 0) return "$0";
     try {
@@ -358,14 +477,6 @@ const SandwichStats = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-[calc(100vh-70px)] bg-gradient-to-br from-gray-50 to-white flex items-center justify-center">
-        <Spin size="large" />
-      </div>
-    );
-  }
-
   return (
     <div className={`min-h-screen bg-gradient-to-br from-gray-50 to-white ${isMobile ? 'p-4' : 'p-8'}`}>
       <div className="max-w-7xl mx-auto">
@@ -373,12 +484,19 @@ const SandwichStats = () => {
         <div className={`${isMobile ? 'mb-6' : 'mb-8'}`}>
           <div className={`flex ${isMobile ? 'flex-col' : 'md:flex-row'} justify-between items-start gap-3`}>
             <div>
-              <h1 className={`${isMobile ? 'text-2xl' : 'text-3xl md:text-4xl'} font-bold text-gray-800 mb-2`}>
-                MEV Sandwich Attack Monitor
+              <h1 className={`${isMobile ? 'text-xl' : 'text-2xl md:text-3xl'} font-bold text-gray-800 mb-2`}>
+                Block Sandwich Attack Monitor
               </h1>
-              <p className="text-sm text-gray-600 mt-2">
-                Last update: {formatBlockTime(lastUpdate.getTime(), timezone, 'full')}
-              </p>
+              <div className={`flex ${isMobile ? 'flex-col' : 'flex-row items-center gap-4'}`}>
+                <p className="text-sm text-gray-600 mt-2">
+                  Last update: {formatBlockTime(lastUpdate.getTime(), timezone, 'full')}
+                </p>
+                {stats?.earliest_block && (
+                  <p className="text-sm text-gray-600 mt-2">
+                    Starting Block: #{formatNumber(stats.earliest_block)}
+                  </p>
+                )}
+              </div>
             </div>
             <div className={`flex ${isMobile ? 'w-full justify-between' : 'items-center'} gap-4`}>
               {bnbUsdt && (
@@ -386,6 +504,37 @@ const SandwichStats = () => {
                   1 BNB ≈ ${bnbUsdt.toFixed(2)} USD
                 </div>
               )}
+
+              <button
+                onClick={toggle}
+                aria-pressed={isPaused}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all
+                  ${isPaused
+                    ? 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                    : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
+                title={isPaused ? 'Resume auto refresh' : 'Pause auto refresh'}
+              >
+                {isPaused ? (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                        d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                    </svg>
+                    <span>Auto Refresh Off</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    <span>Auto Refresh On</span>
+                  </>
+                )}
+              </button>
+
               <div className={`${isMobile ? 'w-[180px]' : ''}`}>
                 <TimezoneSelector />
               </div>
@@ -396,19 +545,28 @@ const SandwichStats = () => {
         <div className="bg-[#FFFBEC] rounded-2xl p-6 md:p-8 mb-8">
           <div className="text-center">
             <h2 className={`${isMobile ? 'text-xl' : 'text-2xl'} font-semibold mb-4 text-[#F3BA2F]`}>Sandwich Attack Rate</h2>
-            <div className={`${isMobile ? 'text-4xl' : 'text-6xl'} font-bold mb-2 text-gray-900`}>
-              {stats && stats.sandwich_percentage ? formatPercentage(stats.sandwich_percentage) : '0%'}
-            </div>
-            <div className={`${isMobile ? 'text-base' : 'text-lg'} text-gray-500`}>
-              {stats && stats.sandwich_blocks ? formatNumber(stats.sandwich_blocks) : '0'} / {stats && stats.total_blocks ? formatNumber(stats.total_blocks) : '0'} blocks
-            </div>
+            {statsLoading ? (
+              <div className="animate-pulse">
+                <div className="h-12 bg-amber-100 rounded w-32 mx-auto mb-2"></div>
+                <div className="h-6 bg-amber-100 rounded w-48 mx-auto"></div>
+              </div>
+            ) : (
+              <>
+                <div className={`${isMobile ? 'text-4xl' : 'text-6xl'} font-bold mb-2 text-gray-900`}>
+                  {stats && stats.sandwich_percentage ? formatPercentage(stats.sandwich_percentage) : '0%'}
+                </div>
+                <div className={`${isMobile ? 'text-base' : 'text-lg'} text-gray-500`}>
+                  {stats && stats.sandwich_blocks ? formatNumber(stats.sandwich_blocks) : '0'} / {stats && stats.total_blocks ? formatNumber(stats.total_blocks) : '0'} blocks
+                </div>
+              </>
+            )}
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-8">
           <div className="bg-white border border-gray-200 rounded p-4 md:p-6">
             <div className="text-gray-900 text-sm mb-2">Total Blocks Analyzed</div>
-            <div className={`${isMobile ? 'text-2xl' : 'text-3xl'} font-bold text-[1E1E1E]`}>
+            <div className={`${isMobile ? 'text-2xl' : 'text-3xl'} font-bold text-[#1E1E1E]`}>
               {stats ? formatNumber(stats.total_blocks) : '0'}
             </div>
             <div className="text-xs text-gray-400 mt-2">
@@ -437,8 +595,16 @@ const SandwichStats = () => {
           </div>
         </div>
 
-        {/* Builder Filter */}
+
         <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 mb-8">
+          <h2 className="relative pl-3 text-base font-semibold text-gray-900 mb-4 leading-6">
+            <span
+              aria-hidden="true"
+              className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 bg-yellow-400"
+            ></span>
+            Builder Statistics & Filters
+          </h2>
+
           <div className={`flex ${isMobile ? 'flex-col' : 'sm:flex-row sm:items-center'} gap-2 sm:gap-3 mb-4`}>
             <label className="text-sm text-gray-600">Filter by Builder:</label>
 
@@ -476,6 +642,92 @@ const SandwichStats = () => {
             )}
           </div>
 
+
+          <div className="mt-3">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-sm font-medium text-gray-700">Advanced Filters</span>
+              {(bundleFilter !== 'all' || amountRange.min || amountRange.max || frontrunRouter !== 'all') && (
+                <button
+                  onClick={() => {
+                    setBundleFilter('all');
+                    setAmountRange({ min: '', max: '' });
+                    setFrontrunRouter('all');
+                  }}
+                  className="text-xs px-3 py-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition-colors"
+                >
+                  Clear Filters
+                </button>
+              )}
+            </div>
+
+            <div className={`grid grid-cols-1 ${isMobile ? '' : 'sm:grid-cols-2 lg:grid-cols-3'} gap-2`}>
+              <div>
+                <label className="text-sm text-gray-600">Filter by Bundles:</label>
+                <Select
+                  value={bundleFilter}
+                  onChange={(value) => setBundleFilter(value)}
+                  className="w-full text-sm"
+                  size="small"
+                >
+                  <Option value="all">All</Option>
+                  <Option value="bundle-only">Bundle Only</Option>
+                  <Option value="non-bundle-only">Non-Bundle Only</Option>
+                </Select>
+              </div>
+
+              <div>
+                <label className="text-sm text-gray-600">Attacked Amount (USD):</label>
+                <Select
+                  value={`${amountRange.min || '0'}-${amountRange.max || 'max'}`}
+                  onChange={(value) => {
+                    const [min, max] = value.split('-');
+                    setAmountRange({
+                      min: min === '0' ? '' : min,
+                      max: max === 'max' ? '' : max
+                    });
+                  }}
+                  className="w-full text-sm"
+                  size="small"
+                >
+                  <Option value="0-max">All</Option>
+                  <Option value="0-1">&lt; $1</Option>
+                  <Option value="1-10">$1 - $10</Option>
+                  <Option value="10-100">$10 - $100</Option>
+                  <Option value="100-1000">$100 - $1K</Option>
+                  <Option value="1000-max">&gt; $1K</Option>
+                </Select>
+              </div>
+
+              <div>
+                <label className="text-sm text-gray-600">Frontrun TX Router:</label>
+                <Select
+                  value={frontrunRouter}
+                  onChange={(value) => setFrontrunRouter(value)}
+                  className="w-full text-sm"
+                  size="small"
+                >
+                  <Option value="all">All</Option>
+                  <Option value="public">Public Router</Option>
+                  <Option value="customized">Customized Contract</Option>
+                </Select>
+              </div>
+            </div>
+
+
+            {(bundleFilter !== 'all' || amountRange.min || amountRange.max || frontrunRouter !== 'all') && (
+              <div className="mt-2 text-xs text-gray-500">
+                Active filters:
+                {bundleFilter !== 'all' && <span className="ml-1 px-2 py-1 bg-blue-50 text-blue-600 rounded">Bundle: {bundleFilter}</span>}
+                {(amountRange.min || amountRange.max) && (
+                  <span className="ml-1 px-2 py-1 bg-green-50 text-green-600 rounded">
+                    Amount: ${amountRange.min || '0'}-${amountRange.max || '∞'}
+                  </span>
+                )}
+                {frontrunRouter !== 'all' && <span className="ml-1 px-2 py-1 bg-purple-50 text-purple-600 rounded">Router: {frontrunRouter}</span>}
+              </div>
+            )}
+          </div>
+
           <div className={`flex ${isMobile ? 'flex-col' : 'sm:flex-row sm:items-center'} gap-2 sm:gap-3 mt-4`}>
             <label className="text-sm text-gray-600">Date Range:</label>
 
@@ -490,17 +742,20 @@ const SandwichStats = () => {
 
             <button
               onClick={() => {
-                if (dateRange.start && dateRange.end) {
-                  fetchStats(dateRange.start, dateRange.end);
-                  if (selectedBuilder) {
-                    loadBuilderStats(selectedBuilder, dateRange.start, dateRange.end);
-                  }
+                fetchStats(dateRange.start, dateRange.end);
+                if (selectedBuilder) {
+                  loadBuilderStats(selectedBuilder, dateRange.start, dateRange.end);
                 }
               }}
+              disabled={isPaused}
               className={
-                isMobile
-                  ? 'w-full px-4 py-2 rounded bg-[#FFC801] text-[#1E1E1E] text-sm font-medium hover:bg-[#FFD829] transition-all'
-                  : 'px-4 py-1 rounded bg-[#FFC801] text-[#1E1E1E] text-sm font-medium hover:bg-[#FFD829] transition-all'
+                isPaused
+                  ? (isMobile
+                    ? 'w-full px-4 py-2 rounded bg-gray-200 text-gray-400 cursor-not-allowed'
+                    : 'px-4 py-1 rounded bg-gray-200 text-gray-400 cursor-not-allowed')
+                  : (isMobile
+                    ? 'w-full px-4 py-2 rounded bg-[#FFC801] text-[#1E1E1E] text-sm font-medium hover:bg-[#FFD829] transition-all'
+                    : 'px-4 py-1 rounded bg-[#FFC801] text-[#1E1E1E] text-sm font-medium hover:bg-[#FFD829] transition-all')
               }
             >
               Apply
@@ -509,9 +764,8 @@ const SandwichStats = () => {
               <button
                 onClick={() => {
                   setDateRange({ start: '', end: '' });
-                  fetchStats();
                   if (selectedBuilder) {
-                    loadBuilderStats(selectedBuilder);
+                    loadBuilderStats(selectedBuilder, '', '');
                   }
                 }}
                 className={
@@ -535,7 +789,7 @@ const SandwichStats = () => {
                 {`${formatNumber(stats.sandwich_builder_blocks)} / ${formatNumber(stats.builder_blocks)} blocks`}
               </div>
 
-              {/* Top builders table */}
+
               {Array.isArray(stats.breakdown_by_builder) && stats.breakdown_by_builder.length > 0 && (
                 <div className="mt-4">
                   <div className="text-sm text-gray-600 mb-2">Builders by Sandwich Rate (High to Low)</div>
@@ -548,6 +802,7 @@ const SandwichStats = () => {
                           <th className="text-left py-2 px-2 text-gray-500">Sandwich</th>
                           <th className="text-left py-2 px-2 text-gray-500">Rate</th>
                           <th className="text-left py-2 px-2 text-gray-500">attack amount(USD) / tx</th>
+                          <th className="text-left py-2 px-2 text-gray-500">Mined Rate</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -560,7 +815,10 @@ const SandwichStats = () => {
                               {b.sandwich_percentage.toFixed(4)}%
                             </td>
                             <td className="py-2 px-2 text-green-600 font-semibold">
-                              {formatProfitUSD(calculateTotalUSD(b))}
+                              {formatProfitUSD(calculateAvgProfitPerTx(b))}
+                            </td>
+                            <td className="py-2 px-2 text-blue-600 font-semibold">
+                              {b.mined_rate ? `${b.mined_rate.toFixed(2)}%` : '-'}
                             </td>
                           </tr>
                         ))}
@@ -590,12 +848,17 @@ const SandwichStats = () => {
           )}
         </div>
 
-        {/* Chart Section */}
+
         <div className={`${isMobile ? 'mb-6' : 'mb-8'}`}>
-          <SandwichChart dateRange={dateRange} />
+          <SandwichChart
+            dateRange={dateRange}
+            bundleFilter={bundleFilter}
+            amountRange={amountRange}
+            frontrunRouter={frontrunRouter}
+          />
         </div>
 
-        {/* Advanced Search (victim_to / bundle / profit_token / date) */}
+
         <div className="bg-white border border-gray-200 rounded-xl p-4 md:p-6 mb-8">
           <h2 className="relative pl-3 text-base font-semibold text-gray-900 mb-4 leading-6">
             <span
@@ -607,12 +870,12 @@ const SandwichStats = () => {
           <div className={`grid grid-cols-1 md:grid-cols-4 ${isMobile ? 'gap-2' : 'gap-3'}`}>
             <div>
               <label className="text-gray-600 text-sm">Victim Router (tx.to)</label>
-                <Input
-                  value={filterVictimTo}
-                  onChange={(e) => setFilterVictimTo(e.target.value)}
-                  placeholder="0x..."
-                  className="w-full"
-                />
+              <Input
+                value={filterVictimTo}
+                onChange={(e) => setFilterVictimTo(e.target.value)}
+                placeholder="0x..."
+                className="w-full"
+              />
             </div>
 
             <div>
@@ -633,25 +896,34 @@ const SandwichStats = () => {
             </div>
 
             <div>
-              <label className="text-gray-600 text-sm">Profit Token</label>
-              <Input
-                value={filterProfitToken}
-                onChange={(e) => setFilterProfitToken(e.target.value)}
-                placeholder="0xbb4c... (WBNB)"
-                className="w-full"
-              />
+              <label className="text-gray-600 text-sm">Sort By</label>
+              <Select
+                value={filterSortBy}
+                onChange={(value) => setFilterSortBy(value)}
+                className="w-full text-sm custom-select"
+                popupClassName="custom-dropdown"
+                popupMatchSelectWidth={false}
+              >
+                <Option value="time">Newest First</Option>
+                <Option value="profit">Highest Victim Loss First</Option>
+              </Select>
             </div>
 
             <div className={`flex ${isMobile ? 'flex-col' : 'items-end'} gap-2`}>
               <button
                 onClick={() => runSearch(1)}
+                disabled={searchLoading || isPaused}
                 className={
-                  isMobile
-                    ? 'w-full px-4 py-2 rounded bg-[#FFC801] text-[#1E1E1E] hover:bg-[#FFD829] transition-all'
-                    : 'flex-2 px-4 py-1 rounded bg-[#FFC801] text-[#1E1E1E] hover:bg-[#FFD829] transition-all'
+                  searchLoading || isPaused
+                    ? (isMobile
+                      ? 'w-full px-4 py-2 rounded bg-gray-200 text-gray-400 cursor-not-allowed'
+                      : 'flex-2 px-4 py-1 rounded bg-gray-200 text-gray-400 cursor-not-allowed')
+                    : (isMobile
+                      ? 'w-full px-4 py-2 rounded bg-[#FFC801] text-[#1E1E1E] hover:bg-[#FFD829] transition-all'
+                      : 'flex-2 px-4 py-1 rounded bg-[#FFC801] text-[#1E1E1E] hover:bg-[#FFD829] transition-all')
                 }
               >
-                Search
+                {searchLoading ? 'Searching...' : 'Search'}
               </button>
               <button
                 onClick={clearSearch}
@@ -699,7 +971,7 @@ const SandwichStats = () => {
                   {searchResults.map((r) => (
                     <tr key={r.id} className="border-b border-gray-100 hover:bg-amber-50 transition-colors">
                       <td className="py-2 px-3">
-                        <a 
+                        <a
                           href={`https://bscscan.com/block/${r.block_number}`}
                           target="_blank"
                           rel="noopener noreferrer"
@@ -788,7 +1060,7 @@ const SandwichStats = () => {
           )}
         </div>
 
-        {/* Search by TX */}
+
         <div className="bg-white border border-gray-200 rounded-xl p-4 md:p-6 mb-8">
           <h2 className="relative pl-3 text-base font-semibold text-gray-900 mb-4 leading-6">
             <span
@@ -856,12 +1128,12 @@ const SandwichStats = () => {
                   {txResults.map((r) => (
                     <tr key={r.id} className="border-b border-gray-100 hover:bg-amber-50 transition-colors">
                       <td className="py-2 px-3 font-mono text-amber-600 font-semibold">#{r.block_number}</td>
-                      <td className="py-2 px-3 font-mono text-gray-600 text-xs">{r.front_tx_hash.slice(0,10)}...</td>
-                      <td className="py-2 px-3 font-mono text-gray-600 text-xs">{r.victim_tx_hash.slice(0,10)}...</td>
+                      <td className="py-2 px-3 font-mono text-gray-600 text-xs">{r.front_tx_hash.slice(0, 10)}...</td>
+                      <td className="py-2 px-3 font-mono text-gray-600 text-xs">{r.victim_tx_hash.slice(0, 10)}...</td>
                       <td className="py-2 px-3">
                         <div className="flex flex-col gap-1">
                           {r.backrun_txes?.map((h, i) => (
-                            <span key={h} className="font-mono text-xs text-gray-500">{i + 1}. {h.slice(0,8)}...</span>
+                            <span key={h} className="font-mono text-xs text-gray-500">{i + 1}. {h.slice(0, 8)}...</span>
                           ))}
                         </div>
                       </td>
@@ -876,7 +1148,7 @@ const SandwichStats = () => {
           )}
         </div>
 
-        {/* Search by Block */}
+
         <div className="bg-white border border-gray-200 rounded-xl p-4 md:p-6 mb-8">
           <h2 className="relative pl-3 text-base font-semibold text-gray-900 mb-4 leading-6">
             <span
@@ -918,7 +1190,7 @@ const SandwichStats = () => {
               )}
             </div>
           </div>
-          
+
           {blockMeta && (
             <div className="mt-4 p-3 bg-amber-50 rounded border border-amber-200">
               <div className="text-sm text-gray-700">
@@ -932,7 +1204,7 @@ const SandwichStats = () => {
                       🥪 Sandwich Detected
                     </span>
                   )}
-                  <a 
+                  <a
                     href={`https://bscscan.com/block/${blockMeta.block_number}`}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -946,7 +1218,7 @@ const SandwichStats = () => {
               </div>
             </div>
           )}
-          
+
           {blockError && <div className="text-red-600 text-sm mt-2">{blockError}</div>}
 
           {blockResults.length > 0 && (
@@ -966,12 +1238,12 @@ const SandwichStats = () => {
                   {blockResults.map((r) => (
                     <tr key={r.id} className="border-b border-gray-100 hover:bg-amber-50 transition-colors">
                       <td className="py-2 px-3 text-amber-600 font-semibold">{r.id}</td>
-                      <td className="py-2 px-3 font-mono text-gray-600 text-xs">{r.front_tx_hash.slice(0,10)}...</td>
-                      <td className="py-2 px-3 font-mono text-gray-600 text-xs">{r.victim_tx_hash.slice(0,10)}...</td>
+                      <td className="py-2 px-3 font-mono text-gray-600 text-xs">{r.front_tx_hash.slice(0, 10)}...</td>
+                      <td className="py-2 px-3 font-mono text-gray-600 text-xs">{r.victim_tx_hash.slice(0, 10)}...</td>
                       <td className="py-2 px-3">
                         <div className="flex flex-col gap-1">
                           {r.backrun_txes?.map((h, i) => (
-                            <span key={h} className="font-mono text-xs text-gray-500">{i + 1}. {h.slice(0,8)}...</span>
+                            <span key={h} className="font-mono text-xs text-gray-500">{i + 1}. {h.slice(0, 8)}...</span>
                           ))}
                         </div>
                       </td>
@@ -1006,10 +1278,31 @@ const SandwichStats = () => {
                 </tr>
               </thead>
               <tbody>
-                {recentBlocks.map((block, i) => (
+                {blocksLoading ? (
+
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={i} className="border-b border-gray-100">
+                      <td className="py-3 px-4">
+                        <div className="animate-pulse h-4 bg-gray-200 rounded w-20"></div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="animate-pulse h-4 bg-gray-200 rounded w-16"></div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="animate-pulse h-4 bg-gray-200 rounded w-32"></div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="animate-pulse h-4 bg-gray-200 rounded w-24"></div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="animate-pulse h-4 bg-gray-200 rounded w-24"></div>
+                      </td>
+                    </tr>
+                  ))
+                ) : recentBlocks.map((block, i) => (
                   <tr key={i} className="border-b border-gray-100 hover:bg-amber-50 transition-colors">
                     <td className="py-3 px-4">
-                      <a 
+                      <a
                         href={`https://bscscan.com/block/${block.block_number}`}
                         target="_blank"
                         rel="noopener noreferrer"
@@ -1041,13 +1334,13 @@ const SandwichStats = () => {
           </div>
         </div>
 
-        {/* Builder Details */}
+
         {showBuilderDetails && selectedBuilder && (
-          <div 
+          <div
             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
             onClick={() => setShowBuilderDetails(false)}
           >
-            <div 
+            <div
               className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
@@ -1075,8 +1368,8 @@ const SandwichStats = () => {
                     </span>
                   )}
                 </div>
-                
-                {/* Quick date range buttons */}
+
+
                 <div className={`flex ${isMobile ? 'flex-wrap' : 'items-center'} gap-2 mt-3`}>
                   <span className="text-sm text-gray-600">Quick select:</span>
                   <button
@@ -1128,7 +1421,7 @@ const SandwichStats = () => {
                     Last 3 months
                   </button>
                 </div>
-                
+
                 {/* Date filter for builder details */}
                 <div className={`flex ${isMobile ? 'flex-col' : 'items-center'} gap-3 mt-4`}>
                   <label className="text-sm text-gray-600">Date Range:</label>
@@ -1210,8 +1503,8 @@ const SandwichStats = () => {
                                 </a>
                               </td>
                               <td className="py-2 px-3 text-gray-600 text-sm">
-                                {s.block_time_ms ? 
-                                  formatBlockTime(s.block_time_ms, timezone, 'full') : 
+                                {s.block_time_ms ?
+                                  formatBlockTime(s.block_time_ms, timezone, 'full') :
                                   formatBlockTime(s.block_time, timezone, 'full')}
                               </td>
                               <td className="py-2 px-3">
@@ -1297,22 +1590,20 @@ const SandwichStats = () => {
                         <button
                           onClick={() => loadBuilderSandwiches(selectedBuilder, builderPage - 1, builderDateRange.start, builderDateRange.end)}
                           disabled={builderPage <= 1}
-                          className={`px-4 py-2 rounded font-medium transition-all ${
-                            builderPage <= 1
+                          className={`px-4 py-2 rounded font-medium transition-all ${builderPage <= 1
                               ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                               : 'bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 hover:from-yellow-400 hover:to-amber-500'
-                          }`}
+                            }`}
                         >
                           Previous
                         </button>
                         <button
                           onClick={() => loadBuilderSandwiches(selectedBuilder, builderPage + 1, builderDateRange.start, builderDateRange.end)}
                           disabled={builderPage >= builderTotalPages}
-                          className={`px-4 py-2 rounded font-medium transition-all ${
-                            builderPage >= builderTotalPages
+                          className={`px-4 py-2 rounded font-medium transition-all ${builderPage >= builderTotalPages
                               ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                               : 'bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 hover:from-yellow-400 hover:to-amber-500'
-                          }`}
+                            }`}
                         >
                           Next
                         </button>
