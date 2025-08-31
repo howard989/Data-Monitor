@@ -163,7 +163,8 @@ export const fetchChartData = async (
   builders = null,
   bundleFilter = 'all',
   amountRange = null,
-  frontrunRouter = 'all'
+  frontrunRouter = 'all',
+  snapshotBlock = null
 ) => {
   const params = new URLSearchParams();
   params.append('interval', interval);
@@ -188,12 +189,28 @@ export const fetchChartData = async (
   if (frontrunRouter && frontrunRouter !== 'all')
     params.append('frontrunRouter', frontrunRouter);
   
+  if (snapshotBlock != null) 
+    params.append('snapshotBlock', String(snapshotBlock));
+  
   const url = `${API_URL}/api/sandwich/chart-data?${params.toString()}`;
 
   const res = await authFetch(url, { method: 'GET' });
 
   if (!res.ok) 
     throw new Error('Failed to fetch chart data');
+  
+  return res.json();
+};
+
+export const clearCache = async () => {
+  const res = await authFetch(`${API_URL}/api/sandwich/clear-cache`, {
+    method: 'POST',
+    headers: getAuthHeaders()
+  });
+  
+  if (!res.ok) {
+    throw new Error('Failed to clear cache');
+  }
   
   return res.json();
 };

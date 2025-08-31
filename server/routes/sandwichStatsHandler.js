@@ -13,6 +13,7 @@ const {
   searchSandwiches,
   getChartData,
 } = require('../postgsql/query');
+const { statsCache, chartCache } = require('../utils/queryCache');
 
 
 router.get('/stats', authMiddleware, async (req, res) => {
@@ -193,7 +194,8 @@ router.get('/chart-data', authMiddleware, async (req, res) => {
       endDate,
       builders,
       bundleFilter = 'all',
-      frontrunRouter = 'all'
+      frontrunRouter = 'all',
+      snapshotBlock
     } = req.query;
     
     const builderList = builders ? builders.split(',').filter(Boolean) : null;
@@ -207,7 +209,8 @@ router.get('/chart-data', authMiddleware, async (req, res) => {
       };
     }
     
-    const data = await getChartData(interval, startDate, endDate, builderList, bundleFilter, amountRange, frontrunRouter);
+    const snap = snapshotBlock !== undefined ? Number(snapshotBlock) : null;
+    const data = await getChartData(interval, startDate, endDate, builderList, bundleFilter, amountRange, frontrunRouter, snap);
     
     res.json({
       success: true,
@@ -216,6 +219,24 @@ router.get('/chart-data', authMiddleware, async (req, res) => {
   } catch (e) {
     console.error('Error in /chart-data:', e);
     res.status(500).json({ success: false, error: 'Failed to fetch chart data' });
+  }
+});
+
+router.post('/clear-cache', authMiddleware, async (req, res) => {
+  try {
+    statsCache.clear();
+    chartCache.clear();
+    
+    console.log('Cache cleared successfully at', new Date().toISOString());
+    
+    res.json({
+      success: true,
+      message: 'Cache cleared successfully',
+      timestamp: new Date().toISOString()
+    });
+  } catch (e) {
+    console.error('Error clearing cache:', e);
+    res.status(500).json({ success: false, error: 'Failed to clear cache' });
   }
 });
 

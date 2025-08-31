@@ -658,10 +658,11 @@ async function getChartData(
   builders = null,
   bundleFilter = 'all',
   amountRange = null,
-  frontrunRouter = 'all'
+  frontrunRouter = 'all',
+  snapshotBlock = null
 ) {
 
-  const cacheKey = JSON.stringify({ interval, startDate, endDate, builders, bundleFilter, amountRange, frontrunRouter });
+  const cacheKey = JSON.stringify({ interval, startDate, endDate, builders, bundleFilter, amountRange, frontrunRouter, snapshotBlock });
   const cached = chartCache.get(cacheKey);
   if (cached) {
     return cached;
@@ -697,11 +698,13 @@ async function getChartData(
       WHERE block_time >= $1::timestamp AND block_time <= $2::timestamp
         AND builder_kind = 'builder'
         AND builder_group IS NOT NULL
+        ${snapshotBlock != null ? 'AND block_number <= $3' : ''}
       GROUP BY 1
       ORDER BY total_blocks DESC
       LIMIT 10;
     `;
-    const { rows } = await pool.query(topBuildersSql, [startDate, endDateTime]);
+    const topParams = snapshotBlock != null ? [startDate, endDateTime, snapshotBlock] : [startDate, endDateTime];
+    const { rows } = await pool.query(topBuildersSql, topParams);
     builderList = rows.map(r => r.builder_name);
   }
 
@@ -710,6 +713,21 @@ async function getChartData(
   let paramIndex = 3;
   let sandwichFilterWhere = '';
   let filterConditions = [];
+
+  // snapshot block condition
+  let snapIdx = null;
+  let snapBoCond = '';
+  let snapBo2Cond = '';
+  let snapSaCond = '';
+  let snapOverviewCond = '';
+  if (snapshotBlock != null) {
+    params.push(snapshotBlock);
+    snapIdx = paramIndex++;
+    snapBoCond = ` AND bo.block_number <= $${snapIdx}`;
+    snapBo2Cond = ` AND bo2.block_number <= $${snapIdx}`;
+    snapSaCond = ` AND sa.block_number <= $${snapIdx}`;
+    snapOverviewCond = ` AND block_number <= $${snapIdx}`;
+  }
 
   if (bundleFilter === 'bundle-only') {
     filterConditions.push('sa.is_bundle = true');
@@ -748,6 +766,7 @@ async function getChartData(
         WHERE bo.block_time >= $1::timestamp AND bo.block_time <= $2::timestamp
           AND bo.builder_kind = 'builder'
           AND bo.builder_group = ANY($${paramIndex}::text[])
+          ${snapBoCond}
         GROUP BY 1, 2
       ),
       filtered_sandwiches AS (
@@ -761,6 +780,8 @@ async function getChartData(
           AND bo.builder_kind = 'builder'
           AND bo.builder_group = ANY($${paramIndex}::text[])
           ${sandwichFilterWhere}
+          ${snapBoCond}
+          ${snapSaCond}
       ),
       overall AS (
         SELECT 
@@ -774,8 +795,11 @@ async function getChartData(
           JOIN ${TBL_OVERVIEW} bo2 ON sa.block_number = bo2.block_number  
           WHERE bo2.block_time >= $1::timestamp AND bo2.block_time <= $2::timestamp
             ${sandwichFilterWhere}
+            ${snapBo2Cond}
+            ${snapSaCond}
         ) fs ON bo.block_number = fs.block_number
         WHERE bo.block_time >= $1::timestamp AND bo.block_time <= $2::timestamp
+          ${snapBoCond}
         GROUP BY 1
       )
       SELECT 
@@ -798,6 +822,10 @@ async function getChartData(
     `;
     params.push(builderList);
   } else {
+    const buildersIdx = paramIndex;
+    params.push(builderList);
+    paramIndex++;
+    
     sql = `
       WITH time_series AS (
         SELECT 
@@ -808,7 +836,8 @@ async function getChartData(
         FROM ${TBL_OVERVIEW}
         WHERE block_time >= $1::timestamp AND block_time <= $2::timestamp
           AND builder_kind = 'builder'
-          AND builder_group = ANY($3::text[])
+          AND builder_group = ANY($${buildersIdx}::text[])
+          ${snapOverviewCond}
         GROUP BY 1, 2
       ),
       overall AS (
@@ -818,6 +847,7 @@ async function getChartData(
           COUNT(*) FILTER (WHERE has_sandwich) as total_sandwich_blocks
         FROM ${TBL_OVERVIEW}
         WHERE block_time >= $1::timestamp AND block_time <= $2::timestamp
+          ${snapOverviewCond}
         GROUP BY 1
       )
       SELECT 
@@ -836,7 +866,6 @@ async function getChartData(
       JOIN overall o ON o.time_bucket = ts.time_bucket
       ORDER BY ts.time_bucket, ts.builder_name;
     `;
-    params.push(builderList);
   }
 
   const { rows } = await pool.query(sql, params);

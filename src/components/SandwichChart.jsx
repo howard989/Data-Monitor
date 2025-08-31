@@ -33,7 +33,7 @@ const chartTypeOptions = [
   { value: 'composed', label: 'Combined View' }
 ];
 
-const SandwichChart = ({ dateRange, bundleFilter, amountRange, frontrunRouter, loading: parentLoading }) => {
+const SandwichChart = ({ dateRange, bundleFilter, amountRange, frontrunRouter, loading: parentLoading, refreshKey, snapshotBlock }) => {
   const [chartData, setChartData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [interval, setInterval] = useState('daily');
@@ -51,12 +51,20 @@ const SandwichChart = ({ dateRange, bundleFilter, amountRange, frontrunRouter, l
     return () => window.removeEventListener('resize', check);
   }, []);
 
+ 
   useEffect(() => {
-    loadChartData();
+    loadChartData(false);
   }, [dateRange.start, dateRange.end, interval, builderFilter, bundleFilter, amountRange, frontrunRouter]);
 
-  const loadChartData = async () => {
-    setLoading(true);
+
+  useEffect(() => {
+    if (refreshKey) {
+      loadChartData(true);
+    }
+  }, [refreshKey]);
+
+  const loadChartData = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const buildersToFetch = builderFilter !== 'all' ? [builderFilter] : null;
       
@@ -67,7 +75,8 @@ const SandwichChart = ({ dateRange, bundleFilter, amountRange, frontrunRouter, l
         buildersToFetch,
         bundleFilter,
         amountRange,
-        frontrunRouter
+        frontrunRouter,
+        snapshotBlock
       );
 
       if (data.series) {
@@ -89,7 +98,7 @@ const SandwichChart = ({ dateRange, bundleFilter, amountRange, frontrunRouter, l
     } catch (error) {
       console.error('Failed to load chart data:', error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 

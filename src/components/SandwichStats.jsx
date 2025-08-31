@@ -6,7 +6,7 @@ import { usePausableRequest } from '../hooks/usePausableRequest';
 import { authFetch, API_URL } from '../data/apiClient';
 import {
   fetchAttackByTx, fetchAttacksByBlock, fetchBuilderList,
-  fetchSandwichStats, fetchBuilderSandwiches, fetchSandwichSearch, fetchEarliestBlock
+  fetchSandwichStats, fetchBuilderSandwiches, fetchSandwichSearch
 } from '../data/apiSandwichStats';
 import { useTimezone } from '../context/TimezoneContext';
 import { formatBlockTime } from '../utils/timeFormatter';
@@ -46,7 +46,6 @@ const SandwichStats = () => {
 
   const [statsLoading, setStatsLoading] = useState(true);
   const [blocksLoading, setBlocksLoading] = useState(true);
-  const [buildersLoading, setBuildersLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(new Date());
 
   const { authToken, logout } = useContext(AuthContext);
@@ -110,7 +109,6 @@ const SandwichStats = () => {
   const [searchDateRange, setSearchDateRange] = useState({ start: '', end: '' });
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
-  const [searchPage, setSearchPage] = useState(1);
   const [searchLimit] = useState(50);
 
   const short = (addr) => (addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : '-');
@@ -133,11 +131,10 @@ const SandwichStats = () => {
 
   const loadBuilders = async () => {
     try {
-      setBuildersLoading(true);
       const { data } = await fetchBuilderList();
       setBuilders(data || []);
-    } finally {
-      setBuildersLoading(false);
+    } catch (error) {
+      console.error('Failed to load builders:', error);
     }
   };
 
@@ -883,6 +880,8 @@ const SandwichStats = () => {
             amountRange={amountRange}
             frontrunRouter={frontrunRouter}
             loading={statsLoading && !isPaused}
+            refreshKey={lastUpdate ? lastUpdate.getTime() : 0}
+            snapshotBlock={stats?.latest_block}
           />
         </div>
 
@@ -1168,13 +1167,48 @@ const SandwichStats = () => {
                 <tbody>
                   {txResults.map((r) => (
                     <tr key={r.id} className="border-b border-gray-100 hover:bg-amber-50 transition-colors">
-                      <td className="py-2 px-3 font-mono text-amber-600 font-semibold">#{r.block_number}</td>
-                      <td className="py-2 px-3 font-mono text-gray-600 text-xs">{r.front_tx_hash.slice(0, 10)}...</td>
-                      <td className="py-2 px-3 font-mono text-gray-600 text-xs">{r.victim_tx_hash.slice(0, 10)}...</td>
+                      <td className="py-2 px-3">
+                        <a
+                          href={`https://bscscan.com/block/${r.block_number}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-mono text-amber-600 font-semibold hover:text-amber-700 hover:underline"
+                        >
+                          #{r.block_number}
+                        </a>
+                      </td>
+                      <td className="py-2 px-3">
+                        <a
+                          href={`https://bscscan.com/tx/${r.front_tx_hash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-mono text-xs text-blue-600 hover:text-blue-700 hover:underline"
+                        >
+                          {r.front_tx_hash.slice(0, 10)}...
+                        </a>
+                      </td>
+                      <td className="py-2 px-3">
+                        <a
+                          href={`https://bscscan.com/tx/${r.victim_tx_hash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-mono text-xs text-red-600 hover:text-red-700 hover:underline"
+                        >
+                          {r.victim_tx_hash.slice(0, 10)}...
+                        </a>
+                      </td>
                       <td className="py-2 px-3">
                         <div className="flex flex-col gap-1">
                           {r.backrun_txes?.map((h, i) => (
-                            <span key={h} className="font-mono text-xs text-gray-500">{i + 1}. {h.slice(0, 8)}...</span>
+                            <a
+                              key={h}
+                              href={`https://bscscan.com/tx/${h}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-mono text-xs text-gray-500 hover:text-gray-700 hover:underline"
+                            >
+                              {i + 1}. {h.slice(0, 8)}...
+                            </a>
                           ))}
                         </div>
                       </td>
@@ -1279,12 +1313,38 @@ const SandwichStats = () => {
                   {blockResults.map((r) => (
                     <tr key={r.id} className="border-b border-gray-100 hover:bg-amber-50 transition-colors">
                       <td className="py-2 px-3 text-amber-600 font-semibold">{r.id}</td>
-                      <td className="py-2 px-3 font-mono text-gray-600 text-xs">{r.front_tx_hash.slice(0, 10)}...</td>
-                      <td className="py-2 px-3 font-mono text-gray-600 text-xs">{r.victim_tx_hash.slice(0, 10)}...</td>
+                      <td className="py-2 px-3">
+                        <a
+                          href={`https://bscscan.com/tx/${r.front_tx_hash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-mono text-xs text-blue-600 hover:text-blue-700 hover:underline"
+                        >
+                          {r.front_tx_hash.slice(0, 10)}...
+                        </a>
+                      </td>
+                      <td className="py-2 px-3">
+                        <a
+                          href={`https://bscscan.com/tx/${r.victim_tx_hash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-mono text-xs text-red-600 hover:text-red-700 hover:underline"
+                        >
+                          {r.victim_tx_hash.slice(0, 10)}...
+                        </a>
+                      </td>
                       <td className="py-2 px-3">
                         <div className="flex flex-col gap-1">
                           {r.backrun_txes?.map((h, i) => (
-                            <span key={h} className="font-mono text-xs text-gray-500">{i + 1}. {h.slice(0, 8)}...</span>
+                            <a
+                              key={h}
+                              href={`https://bscscan.com/tx/${h}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-mono text-xs text-gray-500 hover:text-gray-700 hover:underline"
+                            >
+                              {i + 1}. {h.slice(0, 8)}...
+                            </a>
                           ))}
                         </div>
                       </td>
