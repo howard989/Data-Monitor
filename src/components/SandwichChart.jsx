@@ -33,7 +33,7 @@ const chartTypeOptions = [
   { value: 'composed', label: 'Combined View' }
 ];
 
-const SandwichChart = ({ dateRange, bundleFilter, amountRange, frontrunRouter }) => {
+const SandwichChart = ({ dateRange, bundleFilter, amountRange, frontrunRouter, loading: parentLoading }) => {
   const [chartData, setChartData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [interval, setInterval] = useState('daily');
@@ -93,7 +93,7 @@ const SandwichChart = ({ dateRange, bundleFilter, amountRange, frontrunRouter })
     }
   };
 
-  if (loading) {
+  if (loading || parentLoading) {
     return (
       <div className="bg-white rounded-xl p-6 border border-gray-200 relative">
         <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70">

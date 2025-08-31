@@ -13,7 +13,7 @@ import { formatBlockTime } from '../utils/timeFormatter';
 import TimezoneSelector from './TimezoneSelector';
 import SandwichChart from './SandwichChart';
 import useBnbUsdPrice from '../hooks/useBnbUsdPrice';
-import { Select, Input } from 'antd';
+import { Select, Input} from 'antd';
 import DateRangePicker from './common/DateRangePicker';
 
 const { Option } = Select;
@@ -645,7 +645,21 @@ const SandwichStats = () => {
 
           <div className="mt-3">
             <div className="flex justify-between items-center mb-2">
-              <span className="text-sm font-medium text-gray-700">Advanced Filters</span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-700">Advanced Filters</span>
+                {statsLoading && !isPaused && (
+                  <span
+                    className="inline-flex items-center text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-700"
+                    aria-live="polite"
+                  >
+                    <svg className="animate-spin h-3 w-3 mr-1" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4A4 4 0 004 12z"/>
+                    </svg>
+                    searching...
+                  </span>
+                )}
+              </div>
               {(bundleFilter !== 'all' || amountRange.min || amountRange.max || frontrunRouter !== 'all') && (
                 <button
                   onClick={() => {
@@ -660,7 +674,7 @@ const SandwichStats = () => {
               )}
             </div>
 
-            <div className={`grid grid-cols-1 ${isMobile ? '' : 'sm:grid-cols-2 lg:grid-cols-3'} gap-2`}>
+            <div className={`grid grid-cols-1 ${isMobile ? '' : 'sm:grid-cols-2 lg:grid-cols-3'} gap-2`} aria-busy={statsLoading && !isPaused} aria-live="polite">
               <div>
                 <label className="text-sm text-gray-600">Filter by Bundles:</label>
                 <Select
@@ -668,6 +682,7 @@ const SandwichStats = () => {
                   onChange={(value) => setBundleFilter(value)}
                   className="w-full text-sm"
                   size="small"
+                  disabled={statsLoading || isPaused}
                 >
                   <Option value="all">All</Option>
                   <Option value="bundle-only">Bundle Only</Option>
@@ -688,6 +703,7 @@ const SandwichStats = () => {
                   }}
                   className="w-full text-sm"
                   size="small"
+                  disabled={statsLoading || isPaused}
                 >
                   <Option value="0-max">All</Option>
                   <Option value="0-1">&lt; $1</Option>
@@ -705,6 +721,7 @@ const SandwichStats = () => {
                   onChange={(value) => setFrontrunRouter(value)}
                   className="w-full text-sm"
                   size="small"
+                  disabled={statsLoading || isPaused}
                 >
                   <Option value="all">All</Option>
                   <Option value="public">Public Router</Option>
@@ -747,9 +764,9 @@ const SandwichStats = () => {
                   loadBuilderStats(selectedBuilder, dateRange.start, dateRange.end);
                 }
               }}
-              disabled={isPaused}
+              disabled={isPaused || statsLoading}
               className={
-                isPaused
+                (isPaused || statsLoading)
                   ? (isMobile
                     ? 'w-full px-4 py-2 rounded bg-gray-200 text-gray-400 cursor-not-allowed'
                     : 'px-4 py-1 rounded bg-gray-200 text-gray-400 cursor-not-allowed')
@@ -758,7 +775,7 @@ const SandwichStats = () => {
                     : 'px-4 py-1 rounded bg-[#FFC801] text-[#1E1E1E] text-sm font-medium hover:bg-[#FFD829] transition-all')
               }
             >
-              Apply
+              {statsLoading && !isPaused ? 'Applying...' : 'Apply'}
             </button>
             {(dateRange.start || dateRange.end) && (
               <button
@@ -855,6 +872,7 @@ const SandwichStats = () => {
             bundleFilter={bundleFilter}
             amountRange={amountRange}
             frontrunRouter={frontrunRouter}
+            loading={statsLoading && !isPaused}
           />
         </div>
 
