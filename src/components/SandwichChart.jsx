@@ -33,15 +33,20 @@ const chartTypeOptions = [
   { value: 'composed', label: 'Combined View' }
 ];
 
-const SandwichChart = ({ dateRange, bundleFilter, amountRange, frontrunRouter, loading: parentLoading, refreshKey, snapshotBlock }) => {
+const SandwichChart = ({ dateRange, bundleFilter, amountRange, frontrunRouter, loading: parentLoading, refreshKey, snapshotBlock, allBuilders = [] }) => {
   const [chartData, setChartData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [interval, setInterval] = useState('daily');
   const [chartType, setChartType] = useState('line');
-  const [selectedBuilders, setSelectedBuilders] = useState([]);
   const [availableBuilders, setAvailableBuilders] = useState([]);
   const [builderFilter, setBuilderFilter] = useState('all'); 
   const { timezone } = useTimezone();
+  
+  useEffect(() => {
+    if (allBuilders && allBuilders.length > 0) {
+      setAvailableBuilders(allBuilders);
+    }
+  }, [allBuilders]);
 
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
@@ -53,17 +58,26 @@ const SandwichChart = ({ dateRange, bundleFilter, amountRange, frontrunRouter, l
 
  
   useEffect(() => {
+    if (builderFilter === 'all' && snapshotBlock == null) return;
+    if (parentLoading && snapshotBlock == null) return;
+    
     loadChartData(false);
-  }, [dateRange.start, dateRange.end, interval, builderFilter, bundleFilter, amountRange, frontrunRouter]);
+  }, [dateRange.start, dateRange.end, interval, builderFilter, bundleFilter, amountRange, frontrunRouter, snapshotBlock, parentLoading]);
 
 
   useEffect(() => {
-    if (refreshKey) {
-      loadChartData(true);
-    }
-  }, [refreshKey]);
+    if (!refreshKey) return;
+    if (builderFilter === 'all' && snapshotBlock == null) return;
+    if (parentLoading && snapshotBlock == null) return;
+    
+    loadChartData(true);
+  }, [refreshKey, builderFilter, snapshotBlock, parentLoading]);
 
   const loadChartData = async (silent = false) => {
+    if ((builderFilter === 'all' && snapshotBlock == null) || (parentLoading && snapshotBlock == null)) {
+      return;
+    }
+    
     if (!silent) setLoading(true);
     try {
       const buildersToFetch = builderFilter !== 'all' ? [builderFilter] : null;
@@ -92,8 +106,12 @@ const SandwichChart = ({ dateRange, bundleFilter, amountRange, frontrunRouter, l
 
       setChartData(data);
 
-      if (data.summary?.builders) {
-        setAvailableBuilders(data.summary.builders);
+      if (builderFilter === 'all' && data.summary?.builders) {
+        const topBuilders = data.summary.builders;
+      
+        const mergedSet = new Set([...topBuilders, ...allBuilders].map(b => b.toLowerCase()));
+        const merged = Array.from(mergedSet).sort();
+        setAvailableBuilders(merged);
       }
     } catch (error) {
       console.error('Failed to load chart data:', error);

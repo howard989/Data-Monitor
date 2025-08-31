@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useCallback } from 'react';
+import React, { useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { usePause } from '../context/PauseContext';
@@ -109,7 +109,13 @@ const SandwichStats = () => {
   const [searchDateRange, setSearchDateRange] = useState({ start: '', end: '' });
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
-  const [searchLimit] = useState(50);
+  const [searchPage, setSearchPage] = useState(1);
+  const [searchLimit, setSearchLimit] = useState(25);   // Default page size when no router specified
+  const [searchTotal, setSearchTotal] = useState(0);
+  const [searchTotalPages, setSearchTotalPages] = useState(0);
+
+
+  const [builderSort, setBuilderSort] = useState({ key: 'mined_rate', dir: 'desc' });
 
   const short = (addr) => (addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : '-');
 
@@ -219,6 +225,14 @@ const SandwichStats = () => {
             }
             const statsData = await statsRes.json();
             setStats(statsData.data);
+            
+            if (!dateRange.start && !dateRange.end && statsData?.data?.date_range) {
+              setDateRange({
+                start: statsData.data.date_range.start,
+                end: statsData.data.date_range.end
+              });
+            }
+            
             setLastUpdate(new Date());
           },
           onError: (error) => {
@@ -323,7 +337,10 @@ const SandwichStats = () => {
     setSearchLoading(true);
     setHasSearched(true);
     try {
-      const params = { page, limit: searchLimit, sortBy: filterSortBy };
+      const isRouterFilled = !!(filterVictimTo && filterVictimTo.trim());
+      const limitToUse = isRouterFilled ? 50 : searchLimit; 
+
+      const params = { page, limit: limitToUse, sortBy: filterSortBy };
       if (filterVictimTo) params.victim_to = filterVictimTo.trim().toLowerCase();
       if (filterIsBundle !== '') params.is_bundle = (filterIsBundle === 'true');
       if (searchDateRange.start && searchDateRange.end) {
@@ -337,11 +354,33 @@ const SandwichStats = () => {
       }
 
       const res = await fetchSandwichSearch(params);
-      setSearchResults(res.data || []);
-      setSearchPage(res.page || page);
+      
+      if (res.success === false) {
+        console.error('Search returned error:', res.error);
+        setSearchResults([]);
+        setSearchTotal(0);
+        setSearchTotalPages(0);
+        if (res.error) {
+          alert(res.error);
+        }
+      } else {
+        setSearchResults(res.data || []);
+        setSearchPage(res.page || page);
+        setSearchTotal(res.total || 0);
+        setSearchTotalPages(res.totalPages || Math.ceil((res.total || 0) / limitToUse));
+        
+        if ((!res.data || res.data.length === 0) && res.total > 0 && page > 1) {
+          // Auto retry from page 1
+          setSearchPage(1);
+          return runSearch(1);
+        }
+      }
     } catch (e) {
       console.error('Search failed', e);
       setSearchResults([]);
+      setSearchTotal(0);
+      setSearchTotalPages(0);
+      alert('Search failed. Please check your input and try again.');
     } finally {
       setSearchLoading(false);
     }
@@ -354,6 +393,9 @@ const SandwichStats = () => {
     setSearchDateRange({ start: '', end: '' });
     setSearchResults([]);
     setSearchPage(1);
+    setSearchLimit(25);
+    setSearchTotal(0);
+    setSearchTotalPages(0);
     setHasSearched(false);
   };
 
@@ -478,6 +520,80 @@ const SandwichStats = () => {
       return "-";
     }
   };
+
+
+  const toggleBuilderSort = (key) => {
+    setBuilderSort((prev) => {
+      if (prev.key === key) {
+        return { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' };
+      }
+  
+      const isString = key === 'builder_name';
+      return { key, dir: isString ? 'asc' : 'desc' };
+    });
+  };
+
+  const getBuilderSortValue = (row, key) => {
+    switch (key) {
+      case 'builder_name': 
+        return (row.builder_name || '').toLowerCase();
+      case 'blocks': 
+        return Number(row.blocks || 0);
+      case 'sandwich_blocks': 
+        return Number(row.sandwich_blocks || 0);
+      case 'sandwich_percentage': 
+        return Number(row.sandwich_percentage || 0);
+      case 'avg_profit': 
+        return Number(calculateAvgProfitPerTx(row) || 0);
+      case 'mined_rate': 
+        return Number(row.mined_rate || 0);
+      default: 
+        return 0;
+    }
+  };
+
+  const renderSortIcon = (key) => {
+    if (builderSort.key !== key) {
+      return <span className="ml-1 text-[10px] opacity-60">↕</span>;
+    }
+    return (
+      <span className="ml-1 text-[10px]">
+        {builderSort.dir === 'asc' ? '▲' : '▼'}
+      </span>
+    );
+  };
+
+  const sortBuilders = (list) => {
+    if (!list || !Array.isArray(list)) return [];
+    const sorted = [...list];
+    const { key, dir } = builderSort;
+    
+    sorted.sort((a, b) => {
+      const aVal = getBuilderSortValue(a, key);
+      const bVal = getBuilderSortValue(b, key);
+      
+
+      if (aVal == null && bVal == null) return 0;
+      if (aVal == null) return 1;
+      if (bVal == null) return -1;
+      
+
+      if (typeof aVal === 'string' || typeof bVal === 'string') {
+        return dir === 'asc' 
+          ? String(aVal).localeCompare(String(bVal))
+          : String(bVal).localeCompare(String(aVal));
+      }
+      
+      return dir === 'asc' ? (aVal - bVal) : (bVal - aVal);
+    });
+    
+    return sorted;
+  };
+
+  
+  const sortedBuilders = useMemo(() => {
+    return sortBuilders(stats?.breakdown_by_builder || []);
+  }, [stats?.breakdown_by_builder, builderSort]);
 
   return (
     <div className={`min-h-screen ${isMobile ? 'p-4' : 'p-8 mx-auto max-w-[1140px]'}`}>
@@ -700,24 +816,38 @@ const SandwichStats = () => {
               <div>
                 <label className="text-sm text-gray-600">Attacked Amount (USD):</label>
                 <Select
-                  value={`${amountRange.min || '0'}-${amountRange.max || 'max'}`}
+                  value={amountRange?.filterType || 'all'}
                   onChange={(value) => {
-                    const [min, max] = value.split('-');
-                    setAmountRange({
-                      min: min === '0' ? '' : min,
-                      max: max === 'max' ? '' : max
-                    });
+                    switch (value) {
+                      case 'lt1':
+                        setAmountRange({ filterType: 'lt1', min: '', max: '1' });
+                        break;
+                      case 'gt1':
+                        setAmountRange({ filterType: 'gt1', min: '1', max: '' });
+                        break;
+                      case 'gt10':
+                        setAmountRange({ filterType: 'gt10', min: '10', max: '' });
+                        break;
+                      case 'gt100':
+                        setAmountRange({ filterType: 'gt100', min: '100', max: '' });
+                        break;
+                      case 'gt1000':
+                        setAmountRange({ filterType: 'gt1000', min: '1000', max: '' });
+                        break;
+                      default:
+                        setAmountRange({ filterType: 'all', min: '', max: '' });
+                    }
                   }}
                   className="w-full text-sm"
                   size="middle"
                   disabled={statsLoading || isPaused}
                 >
-                  <Option value="0-max">All</Option>
-                  <Option value="0-1">&lt; $1</Option>
-                  <Option value="1-10">$1 - $10</Option>
-                  <Option value="10-100">$10 - $100</Option>
-                  <Option value="100-1000">$100 - $1K</Option>
-                  <Option value="1000-max">&gt; $1K</Option>
+                  <Option value="all">All</Option>
+                  <Option value="lt1">&lt; $1</Option>
+                  <Option value="gt1">&gt; $1</Option>
+                  <Option value="gt10">&gt; $10</Option>
+                  <Option value="gt100">&gt; $100</Option>
+                  <Option value="gt1000">&gt; $1K</Option>
                 </Select>
               </div>
 
@@ -742,9 +872,15 @@ const SandwichStats = () => {
               <div className="mt-4 text-xs text-gray-500">
                 Active filters:
                 {bundleFilter !== 'all' && <span className="ml-1 px-2 py-1 bg-blue-50 text-blue-600 rounded">Bundle: {bundleFilter}</span>}
-                {(amountRange.min || amountRange.max) && (
+                {amountRange.filterType && amountRange.filterType !== 'all' && (
                   <span className="ml-1 px-2 py-1 bg-green-50 text-green-600 rounded">
-                    Amount: ${amountRange.min || '0'}-${amountRange.max || '∞'}
+                    Amount: {
+                      amountRange.filterType === 'lt1' ? '< $1' :
+                      amountRange.filterType === 'gt1' ? '> $1' :
+                      amountRange.filterType === 'gt10' ? '> $10' :
+                      amountRange.filterType === 'gt100' ? '> $100' :
+                      amountRange.filterType === 'gt1000' ? '> $1K' : ''
+                    }
                   </span>
                 )}
                 {frontrunRouter !== 'all' && <span className="ml-1 px-2 py-1 bg-purple-50 text-purple-600 rounded">Router: {frontrunRouter}</span>}
@@ -816,36 +952,75 @@ const SandwichStats = () => {
 
               {Array.isArray(stats.breakdown_by_builder) && stats.breakdown_by_builder.length > 0 && (
                 <div className="mt-4">
-                  <div className="text-sm text-gray-600 mb-2">Builders by Sandwich Rate (High to Low)</div>
+                  <div className="text-sm text-gray-600 mb-2">
+                    Builders — sorted by <b>{
+                      builderSort.key === 'builder_name' ? 'Builder' :
+                      builderSort.key === 'blocks' ? 'Blocks' :
+                      builderSort.key === 'sandwich_blocks' ? 'Sandwich' :
+                      builderSort.key === 'sandwich_percentage' ? 'Rate' :
+                      builderSort.key === 'avg_profit' ? 'USD/tx' :
+                      'Mined Rate'
+                    }</b> ({builderSort.dir === 'asc' ? 'asc' : 'desc'})
+                  </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm min-w-[760px]">
                       <thead>
                         <tr className="border-b border-gray-200">
-                          <th className="text-left py-2 px-2 text-gray-500">Builder</th>
-                          <th className="text-left py-2 px-2 text-gray-500">Blocks</th>
-                          <th className="text-left py-2 px-2 text-gray-500">Sandwich</th>
-                          <th className="text-left py-2 px-2 text-gray-500">Rate</th>
-                          <th className="text-left py-2 px-2 text-gray-500">attack amount(USD) / tx</th>
-                          <th className="text-left py-2 px-2 text-gray-500">Mined Rate</th>
+                          <th 
+                            className="text-left py-2 px-2 text-gray-600 cursor-pointer select-none hover:bg-gray-50"
+                            onClick={() => toggleBuilderSort('builder_name')}
+                          >
+                            Builder {renderSortIcon('builder_name')}
+                          </th>
+                          <th 
+                            className="text-left py-2 px-2 text-gray-600 cursor-pointer select-none hover:bg-gray-50"
+                            onClick={() => toggleBuilderSort('blocks')}
+                          >
+                            Blocks {renderSortIcon('blocks')}
+                          </th>
+                          <th 
+                            className="text-left py-2 px-2 text-gray-600 cursor-pointer select-none hover:bg-gray-50"
+                            onClick={() => toggleBuilderSort('sandwich_blocks')}
+                          >
+                            Sandwich {renderSortIcon('sandwich_blocks')}
+                          </th>
+                          <th 
+                            className="text-left py-2 px-2 text-gray-600 cursor-pointer select-none hover:bg-gray-50"
+                            onClick={() => toggleBuilderSort('sandwich_percentage')}
+                          >
+                            Rate {renderSortIcon('sandwich_percentage')}
+                          </th>
+                          <th 
+                            className="text-left py-2 px-2 text-gray-600 cursor-pointer select-none hover:bg-gray-50"
+                            onClick={() => toggleBuilderSort('avg_profit')}
+                          >
+                            attack amount(USD) / tx {renderSortIcon('avg_profit')}
+                          </th>
+                          <th 
+                            className="text-left py-2 px-2 text-gray-600 cursor-pointer select-none hover:bg-gray-50"
+                            onClick={() => toggleBuilderSort('mined_rate')}
+                          >
+                            Mined Rate {renderSortIcon('mined_rate')}
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
-                        {stats.breakdown_by_builder.slice(0, 10).map((b, idx) => (
-                          <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50">
-                            <td className="py-2 px-2 text-gray-700">{b.builder_name || '-'}</td>
-                            <td className="py-2 px-2 text-gray-700">{formatNumber(b.blocks)}</td>
-                            <td className="py-2 px-2 text-gray-700">{formatNumber(b.sandwich_blocks)}</td>
-                            <td className="py-2 px-2 text-amber-600 font-semibold">
-                              {b.sandwich_percentage.toFixed(4)}%
-                            </td>
-                            <td className="py-2 px-2 text-green-600 font-semibold">
-                              {formatProfitUSD(calculateAvgProfitPerTx(b))}
-                            </td>
-                            <td className="py-2 px-2 text-blue-600 font-semibold">
-                              {b.mined_rate ? `${b.mined_rate.toFixed(2)}%` : '-'}
-                            </td>
-                          </tr>
-                        ))}
+                        {sortedBuilders.slice(0, 10).map((b, idx) => (
+                            <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50">
+                              <td className="py-2 px-2 text-gray-700">{b.builder_name || '-'}</td>
+                              <td className="py-2 px-2 text-gray-700">{formatNumber(b.blocks)}</td>
+                              <td className="py-2 px-2 text-gray-700">{formatNumber(b.sandwich_blocks)}</td>
+                              <td className="py-2 px-2 text-amber-600 font-semibold">
+                                {Number(b.sandwich_percentage || 0).toFixed(4)}%
+                              </td>
+                              <td className="py-2 px-2 text-green-600 font-semibold">
+                                {formatProfitUSD(calculateAvgProfitPerTx(b))}
+                              </td>
+                              <td className="py-2 px-2 text-blue-600 font-semibold">
+                                {b.mined_rate ? `${Number(b.mined_rate).toFixed(2)}%` : '-'}
+                              </td>
+                            </tr>
+                          ))}
                       </tbody>
                     </table>
                   </div>
@@ -882,6 +1057,7 @@ const SandwichStats = () => {
             loading={statsLoading && !isPaused}
             refreshKey={lastUpdate ? lastUpdate.getTime() : 0}
             snapshotBlock={stats?.latest_block}
+            allBuilders={builders}
           />
         </div>
 
@@ -938,7 +1114,10 @@ const SandwichStats = () => {
 
             <div className={`flex ${isMobile ? 'flex-col' : 'items-end'} gap-2`}>
               <button
-                onClick={() => runSearch(1)}
+                onClick={() => {
+                  setSearchPage(1);
+                  runSearch(1);
+                }}
                 disabled={searchLoading || isPaused}
                 className={
                   searchLoading || isPaused
@@ -978,6 +1157,12 @@ const SandwichStats = () => {
             </div>
           </div>
 
+          {hasSearched && searchResults.length === 0 && !searchLoading && (
+            <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded text-center text-gray-600">
+              No results found for the search criteria. Try adjusting your filters.
+            </div>
+          )}
+          
           {searchResults.length > 0 && (
             <div className="mt-4 mx-auto max-w-[1140px] overflow-x-auto">
               <table className="w-full min-w-[900px]">
@@ -1096,6 +1281,83 @@ const SandwichStats = () => {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+          
+          {searchResults.length > 0 && (
+            <div className={`flex ${isMobile ? 'flex-col gap-3' : 'justify-between items-center'} mt-4`}>
+              <div className={`flex ${isMobile ? 'flex-col gap-2' : 'items-center gap-3'}`}>
+                <span className="text-sm text-gray-600">
+                  Page {searchPage} of {Math.max(1, searchTotalPages)} • {searchTotal.toLocaleString()} results
+                </span>
+                {!filterVictimTo?.trim() && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-500">Rows/page:</span>
+                    <Select
+                      size="small"
+                      value={searchLimit}
+                      onChange={(v) => {
+                        setSearchLimit(v);
+                        setSearchPage(1);
+                        runSearch(1);
+                      }}
+                      disabled={searchLoading}
+                      options={[
+                        { value: 10, label: '10' },
+                        { value: 25, label: '25' },
+                        { value: 50, label: '50' },
+                        { value: 100, label: '100' },
+                      ]}
+                      style={{ width: 80 }}
+                    />
+                  </div>
+                )}
+                {searchTotalPages > 1 && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-500">Go to:</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max={searchTotalPages}
+                      className="w-16 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const page = parseInt(e.target.value);
+                          if (page >= 1 && page <= searchTotalPages) {
+                            runSearch(page);
+                          }
+                        }
+                      }}
+                      placeholder="#"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className={`flex ${isMobile ? 'flex-col' : 'flex-row'} gap-2`}>
+                <button
+                  onClick={() => runSearch(searchPage - 1)}
+                  disabled={searchPage <= 1 || searchLoading}
+                  className={`px-4 py-2 rounded font-medium transition-all ${
+                    searchPage <= 1 || searchLoading
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 hover:from-yellow-400 hover:to-amber-500'
+                  }`}
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => runSearch(searchPage + 1)}
+                  disabled={searchPage >= searchTotalPages || searchLoading}
+                  className={`px-4 py-2 rounded font-medium transition-all ${
+                    searchPage >= searchTotalPages || searchLoading
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 hover:from-yellow-400 hover:to-amber-500'
+                  }`}
+                >
+                  Next
+                </button>
+              </div>
             </div>
           )}
         </div>

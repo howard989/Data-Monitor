@@ -65,8 +65,8 @@ function buildFilters(amountRange, bundleFilter, frontrunRouter, params, p) {
 
   if (hasAmount) {
     const rangeConds = [];
-    if ((amountRange.min ?? '') !== '') { params.push(amountRange.min); rangeConds.push(`sa.profit_wei::numeric/1e18 >= $${p++}`); }
-    if ((amountRange.max ?? '') !== '') { params.push(amountRange.max); rangeConds.push(`sa.profit_wei::numeric/1e18 <= $${p++}`); }
+    if ((amountRange.min ?? '') !== '') { params.push(amountRange.min); rangeConds.push(`sa.profit_wei::numeric/1e18 > $${p++}`); }
+    if ((amountRange.max ?? '') !== '') { params.push(amountRange.max); rangeConds.push(`sa.profit_wei::numeric/1e18 < $${p++}`); }
     conds.push(`sa.profit_token IN (${stableList}) AND ${rangeConds.join(' AND ')}`);
   }
 
@@ -739,8 +739,8 @@ async function getChartData(
   if (amountRange && ((amountRange.min ?? '') !== '' || (amountRange.max ?? '') !== '')) {
     const stableList = stableTokens.map(t => `'${t.toLowerCase()}'`).join(',');
     const range = [];
-    if ((amountRange.min ?? '') !== '') { params.push(amountRange.min); range.push(`sa.profit_wei::numeric/1e18 >= $${paramIndex++}`); }
-    if ((amountRange.max ?? '') !== '') { params.push(amountRange.max); range.push(`sa.profit_wei::numeric/1e18 <= $${paramIndex++}`); }
+    if ((amountRange.min ?? '') !== '') { params.push(amountRange.min); range.push(`sa.profit_wei::numeric/1e18 > $${paramIndex++}`); }
+    if ((amountRange.max ?? '') !== '') { params.push(amountRange.max); range.push(`sa.profit_wei::numeric/1e18 < $${paramIndex++}`); }
     filterConditions.push(`sa.profit_token IN (${stableList}) AND ${range.join(' AND ')}`);
   }
 
@@ -879,6 +879,8 @@ async function getChartData(
     avgRate: 0
   };
   const seenDates = new Set();
+  
+  const perBuilderTotals = new Map(); 
 
   rows.forEach(row => {
     if (!chartData[row.date]) {
@@ -893,6 +895,10 @@ async function getChartData(
     }
     chartData[row.date][row.builder_name] = Number(row.sandwich_rate);
 
+    const pb = perBuilderTotals.get(row.builder_name) || { blocks: 0, sandwiches: 0 };
+    pb.blocks += Number(row.total_blocks || 0);
+    pb.sandwiches += Number(row.sandwich_blocks || 0);
+    perBuilderTotals.set(row.builder_name, pb);
 
     if (!seenDates.has(row.date)) {
       seenDates.add(row.date);
@@ -902,6 +908,14 @@ async function getChartData(
   });
 
   const series = Object.values(chartData);
+  
+  if (Array.isArray(builderList) && builderList.length === 1) {
+    const singleBuilder = builderList[0];
+    const builderTotals = perBuilderTotals.get(singleBuilder) || { blocks: 0, sandwiches: 0 };
+    summary.totalBlocks = builderTotals.blocks;
+    summary.totalSandwiches = builderTotals.sandwiches;
+  }
+  
   summary.avgRate = summary.totalBlocks > 0
     ? Number((100.0 * summary.totalSandwiches / summary.totalBlocks).toFixed(2))
     : 0;
