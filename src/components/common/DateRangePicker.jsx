@@ -89,7 +89,7 @@ const DateRangePicker = ({
         onChange={handleStartChange}
         format={format}
         allowClear={allowClear}
-        placeholder="开始日期"
+        placeholder="Start Date"
         inputReadOnly
         style={{ flex: 1 }}
         disabledDate={startDisabledDate}
@@ -100,7 +100,7 @@ const DateRangePicker = ({
         onChange={handleEndChange}
         format={format}
         allowClear={allowClear}
-        placeholder="结束日期"
+        placeholder="End Date"
         inputReadOnly
         style={{ flex: 1 }}
         disabledDate={endDisabledDate}
