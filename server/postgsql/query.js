@@ -717,7 +717,7 @@ async function getChartData(
     filterConditions.push('sa.is_bundle = false');
   }
 
-  
+
   if (amountRange && ((amountRange.min ?? '') !== '' || (amountRange.max ?? '') !== '')) {
     const stableList = stableTokens.map(t => `'${t.toLowerCase()}'`).join(',');
     const range = [];
@@ -890,7 +890,9 @@ async function getChartData(
   return result;
 }
 
-async function searchSandwiches({ victim_to = null, is_bundle = null, profit_token = null, builder = null, startDate = null, endDate = null, page = 1, limit = 50, sortBy = 'time' }) {
+async function searchSandwiches({ victim_to = null, is_bundle = null, profit_token = null, builder = null, startDate = null,
+  endDate = null, page = 1, limit = 50, sortBy = 'time', bnbUsd = null }) {
+
   const MAX_PAGES = 100;
   if (page > MAX_PAGES) {
     return {
@@ -907,6 +909,9 @@ async function searchSandwiches({ victim_to = null, is_bundle = null, profit_tok
 
   const params = [];
   let where = '1=1';
+
+  const stableList = stableTokens.map(t => `'${t.toLowerCase()}'`).join(',');
+  let dataParams = [];
 
   if (victim_to) {
     params.push(String(victim_to).toLowerCase());
@@ -932,7 +937,26 @@ async function searchSandwiches({ victim_to = null, is_bundle = null, profit_tok
                  OR (bo.builder_kind='bribe'   AND bo.builder_bribe_name=$${params.length}))`;
   }
 
-  params.push(limit, offset);
+
+  dataParams = params.slice();
+  let orderBySql = 'sa.block_number DESC';
+  if (sortBy === 'profit') {
+    let bnbParamLiteral = 'NULL';
+    if (Number.isFinite(bnbUsd) && bnbUsd > 0) {
+      dataParams.push(bnbUsd);
+      bnbParamLiteral = `$${dataParams.length}`;
+    }
+    const profitUsdExpr = `
+          CASE
+            WHEN sa.profit_token IN (${stableList}) THEN sa.profit_wei::numeric / 1e18
+            WHEN sa.profit_token = '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c' THEN (sa.profit_wei::numeric / 1e18) * ${bnbParamLiteral}
+            ELSE NULL
+          END
+        `;
+    orderBySql = `${profitUsdExpr} DESC NULLS LAST, sa.block_number DESC`;
+  }
+
+  dataParams.push(limit, offset);
 
   const sql = `
     SELECT
@@ -962,12 +986,12 @@ async function searchSandwiches({ victim_to = null, is_bundle = null, profit_tok
     LEFT JOIN public.sandwich_backrun sb ON sb.attack_id = sa.id
     WHERE ${where}
     GROUP BY sa.id, bo.builder_kind, bo.builder_group, bo.builder_bribe_name, bo.validator_name
-    ORDER BY ${sortBy === 'profit' ? 'sa.profit_wei DESC, sa.block_number DESC' : 'sa.block_number DESC'}
-    LIMIT $${params.length - 1} OFFSET $${params.length};
+    ORDER BY ${orderBySql}
+    LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length};
   `;
 
-  // count query for total results
-  const countParams = params.slice(0, -2); // Exclude limit and offset
+  const countParams = params.slice(0);
+
   const countSql = `
     SELECT COUNT(DISTINCT sa.id) as total
     FROM public.sandwich_attack sa
@@ -977,7 +1001,7 @@ async function searchSandwiches({ victim_to = null, is_bundle = null, profit_tok
 
   const [countRes, dataRes] = await Promise.all([
     pool.query(countSql, countParams),
-    pool.query(sql, params)
+    pool.query(sql, dataParams)
   ]);
 
   const total = parseInt(countRes.rows[0]?.total || 0);

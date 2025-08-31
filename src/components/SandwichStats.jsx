@@ -335,6 +335,10 @@ const SandwichStats = () => {
       }
       if (selectedBuilder) params.builder = selectedBuilder;
 
+      if (filterSortBy === 'profit' && bnbUsdt) {
+        params.bnbUsd = bnbUsdt;
+      }
+
       const res = await fetchSandwichSearch(params);
       setSearchResults(res.data || []);
       setSearchPage(res.page || page);
@@ -483,12 +487,12 @@ const SandwichStats = () => {
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-4">
           <nav className="text-sm text-gray-600">
-              <Link to="/service" className="text-[#F3BA2F] hover:underline">Service</Link>
-              <span className="mx-2">/</span>
-              <span>Sandwich Stats</span>
+            <Link to="/service" className="text-[#F3BA2F] hover:underline">Service</Link>
+            <span className="mx-2">/</span>
+            <span>Sandwich Stats</span>
           </nav>
           <div className="text-sm text-gray-600">
-              Last update: {formatBlockTime(lastUpdate.getTime(), timezone, 'full')}
+            Last update: {formatBlockTime(lastUpdate.getTime(), timezone, 'full')}
           </div>
         </div>
 
@@ -518,7 +522,7 @@ const SandwichStats = () => {
                 </div>
               )}
 
-              <Tooltip 
+              <Tooltip
                 title={isPaused ? 'Resume auto refresh' : 'Pause auto refresh'}
                 placement="top"
               >
@@ -659,8 +663,8 @@ const SandwichStats = () => {
                     aria-live="polite"
                   >
                     <svg className="animate-spin h-3 w-3 mr-1" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4A4 4 0 004 12z"/>
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4A4 4 0 004 12z" />
                     </svg>
                     searching...
                   </span>
@@ -1347,7 +1351,7 @@ const SandwichStats = () => {
                         #{block.block_number}
                       </a>
                     </td>
-                    
+
                     <td className="py-2 px-3">
                       {block.has_sandwich ? (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
@@ -1359,11 +1363,11 @@ const SandwichStats = () => {
                         </span>
                       )}
                     </td>
-                    
+
                     <td className="py-2 px-3 text-gray-500 text-xs whitespace-nowrap">
                       {formatBlockTime(block.block_time_ms || block.block_time || block.updated_at, timezone, 'full')}
                     </td>
-                    
+
                     <td className="py-2 px-3 text-gray-700 text-sm">
                       {block.builder_name || <span className="text-gray-400">-</span>}
                     </td>
@@ -1640,8 +1644,8 @@ const SandwichStats = () => {
                           onClick={() => loadBuilderSandwiches(selectedBuilder, builderPage - 1, builderDateRange.start, builderDateRange.end)}
                           disabled={builderPage <= 1}
                           className={`px-4 py-2 rounded font-medium transition-all ${builderPage <= 1
-                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                              : 'bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 hover:from-yellow-400 hover:to-amber-500'
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : 'bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 hover:from-yellow-400 hover:to-amber-500'
                             }`}
                         >
                           Previous
@@ -1650,8 +1654,8 @@ const SandwichStats = () => {
                           onClick={() => loadBuilderSandwiches(selectedBuilder, builderPage + 1, builderDateRange.start, builderDateRange.end)}
                           disabled={builderPage >= builderTotalPages}
                           className={`px-4 py-2 rounded font-medium transition-all ${builderPage >= builderTotalPages
-                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                              : 'bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 hover:from-yellow-400 hover:to-amber-500'
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : 'bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 hover:from-yellow-400 hover:to-amber-500'
                             }`}
                         >
                           Next

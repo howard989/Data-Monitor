@@ -161,7 +161,8 @@ router.get('/search', authMiddleware, async (req, res) => {
       endDate,
       page = '1',
       limit = '50',
-      sortBy = 'time'
+      sortBy = 'time',
+      bnbUsd
     } = req.query;
 
     const result = await searchSandwiches({
@@ -173,7 +174,8 @@ router.get('/search', authMiddleware, async (req, res) => {
       endDate: endDate || null,
       page: Math.max(1, parseInt(page)),
       limit: Math.min(100, Math.max(1, parseInt(limit))),
-      sortBy: sortBy || 'time'
+      sortBy: sortBy || 'time',
+      bnbUsd: (bnbUsd !== undefined && bnbUsd !== '') ? Number(bnbUsd) : null
     });
 
     res.json(result);
