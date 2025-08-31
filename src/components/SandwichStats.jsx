@@ -547,7 +547,7 @@ const SandwichStats = () => {
                           <th className="text-left py-2 px-2 text-gray-500">Blocks</th>
                           <th className="text-left py-2 px-2 text-gray-500">Sandwich</th>
                           <th className="text-left py-2 px-2 text-gray-500">Rate</th>
-                          <th className="text-left py-2 px-2 text-gray-500">attack amount total (USD)</th>
+                          <th className="text-left py-2 px-2 text-gray-500">attack amount(USD) / tx</th>
                         </tr>
                       </thead>
                       <tbody>
