@@ -8,6 +8,7 @@ import Navbar from './components/Navbar';
 import PrivateRoute from './components/PrivateRoute';
 import ArbDetails from './components/ArbDetails';
 import SandwichStats from './components/SandwichStats';
+import Service from './components/Service';
 import { TimezoneProvider } from './context/TimezoneContext';
 
 const antdTheme = {
@@ -22,6 +23,9 @@ const antdTheme = {
     Button: {
       colorPrimaryHover: '#E6B600',
       colorPrimaryActive: '#D4A800',
+    },
+    Segmented: {
+      itemSelectedBg: '#FFC801',
     },
   },
   // componentSize: 'middle',
@@ -39,7 +43,7 @@ function App() {
                                     path="/"
                                     element={
                                         <PrivateRoute>
-                                            <SandwichStats />
+                                            <Service />
                                         </PrivateRoute>
                                     }
                                 />
@@ -49,6 +53,15 @@ function App() {
                                     element={
                                         <PrivateRoute>
                                             <SandwichStats />
+                                        </PrivateRoute>
+                                    }
+                                />
+
+                                <Route
+                                    path="/service"
+                                    element={
+                                        <PrivateRoute>
+                                            <Service />
                                         </PrivateRoute>
                                     }
                                 />

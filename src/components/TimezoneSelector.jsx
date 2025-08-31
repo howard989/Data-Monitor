@@ -18,7 +18,7 @@ const TimezoneSelector = () => {
         value={timezoneKey}
         onChange={(value) => setTimezone(value)}
         options={timezoneOptions}
-        style={{ width: 180 }}
+        style={{ width: 160 }}
       />
     </div>
   );

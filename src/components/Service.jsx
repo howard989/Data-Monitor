@@ -1,0 +1,146 @@
+// src/components/Service.jsx
+import React, { useMemo, useState } from 'react';
+import { Segmented, Card, Tag, Row, Col, Button, Space } from 'antd';
+import { AppstoreOutlined, BlockOutlined, BuildOutlined } from '@ant-design/icons';
+
+function Service() {
+
+  const [category, setCategory] = useState('all');
+
+  const SEGMENTED_OPTIONS = [
+    { label: <Space size={6}><AppstoreOutlined /><span>All</span></Space>, value: 'all' },
+    { label: <Space size={6}><BlockOutlined /><span>block</span></Space>, value: 'block' },
+    { label: <Space size={6}><BuildOutlined /><span>builder</span></Space>, value: 'builder' },
+  ];
+
+  /** 卡片数据 */
+  const items = useMemo(
+    () => [
+      {
+        title: 'Sandwich Stats',
+        description: 'Block Sandwich Attack Monitor',
+        categoryKey: 'block',
+        chains: ['BNB'],
+        enabled: true,
+        href: '/sandwich-stats',
+      },
+    //   {
+    //     title: 'Sniping Orders',
+    //     description: 'Limit orders for sniping',
+    //     categoryKey: 'builder',
+    //     chains: ['BNB'],
+    //     enabled: false,
+    //     href: '/service/sniper',
+    //   },
+    //   {
+    //     title: 'Copy Trading',
+    //     description:
+    //       'BNB Chain offers the fastest order-following service within the same region.',
+    //     categoryKey: 'builder',
+    //     chains: ['BNB'],
+    //     enabled: false,
+    //     href: '/service/copy-trading',
+    //   },
+    ],
+    []
+  );
+
+  /** Tag 颜色映射 */
+  const chainTagColor = (chain) => {
+    switch (chain) {
+      case 'EVM':
+        return 'processing';
+      case 'Solana':
+        return 'success';
+      case 'BNB':
+      default:
+        return 'warning';
+    }
+  };
+
+  const displayed = useMemo(() => {
+    const list = category === 'all' ? items : items.filter(i => i.categoryKey === category);
+    return list.slice().sort((a, b) => Number(b.enabled) - Number(a.enabled));
+  }, [category, items]);
+
+  /** 分类图标） */
+  const categoryIcon = (key) => {
+    if (key === 'block') return <BlockOutlined />;
+    if (key === 'builder') return <BuildOutlined />;
+    return <AppstoreOutlined />;
+  };
+
+  return (
+    <div className="service-root min-h-[calc(100vh-66px)] overflow-y-auto">
+
+      <div className="max-w-6xl mx-auto px-3 sm:px-4 py-6 sm:py-8">
+        {/* 顶部导航 */}
+        <div className="flex justify-center mb-6 sm:mb-8">
+          <Segmented
+            className="service-seg w-full max-w-xl"
+            options={SEGMENTED_OPTIONS}
+            value={category}
+            onChange={(val) => setCategory(String(val))}
+            block
+          />
+        </div>
+
+        {/* 列表区域 */}
+        <Row gutter={[16, 16]}>
+          {displayed.map((item, idx) => (
+            <Col xs={24} md={12} key={idx}>
+              <Card
+                hoverable
+                className="bg-white border border-gray-200 rounded"
+                bodyStyle={{ padding: 16 }}
+              >
+                <div className="relative">
+                  {/* 右上角分类图标 */}
+                  <div className="absolute right-3 top-3 text-gray-300 text-lg">
+                    {categoryIcon(item.categoryKey)}
+                  </div>
+
+                  {/* 文字部分 */}
+                  <div className="pr-28 pb-10">
+                    <div className="text-gray-900 text-base md:text-lg font-semibold mb-1">
+                      {item.title}
+                    </div>
+                    <div className="text-xs sm:text-sm text-gray-500 mb-3">
+                      {item.description}
+                    </div>
+                    <Space size={8} wrap>
+                      {item.chains.map((c, i) => (
+                        <Tag key={i} color={chainTagColor(c)}>{c}</Tag>
+                      ))}
+                      <Tag bordered>{item.categoryKey}</Tag>
+                    </Space>
+                  </div>
+
+                  {/* 右下角按钮 */}
+                  <div className="absolute right-3 bottom-1">
+                    {item.enabled ? (
+                      <Button
+                        type="primary"
+                        size="normal"
+                        href={item.href}
+                        className="text-[#1E1E1E] px-6 py-1 rounded text-sm transition-all"
+                        >
+                            View
+                    </Button>
+                    ) : (
+                      <span className="text-[11px] sm:text-xs text-gray-400 uppercase tracking-wider">
+                        Coming Soon
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+      </div>
+    </div>
+  );
+}
+
+export default Service;

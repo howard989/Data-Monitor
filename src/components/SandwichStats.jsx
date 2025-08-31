@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { usePause } from '../context/PauseContext';
 import { usePausableRequest } from '../hooks/usePausableRequest';
@@ -13,8 +13,9 @@ import { formatBlockTime } from '../utils/timeFormatter';
 import TimezoneSelector from './TimezoneSelector';
 import SandwichChart from './SandwichChart';
 import useBnbUsdPrice from '../hooks/useBnbUsdPrice';
-import { Select, Input} from 'antd';
+import { Select, Input, Tooltip } from 'antd';
 import DateRangePicker from './common/DateRangePicker';
+import { EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons';
 
 const { Option } = Select;
 
@@ -478,8 +479,20 @@ const SandwichStats = () => {
   };
 
   return (
-    <div className={`min-h-screen bg-gradient-to-br from-gray-50 to-white ${isMobile ? 'p-4' : 'p-8'}`}>
+    <div className={`min-h-screen ${isMobile ? 'p-4' : 'p-8 mx-auto max-w-[1140px]'}`}>
       <div className="max-w-7xl mx-auto">
+        <div className="flex justify-between items-center mb-4">
+          <nav className="text-sm text-gray-600">
+              <Link to="/service" className="text-[#F3BA2F] hover:underline">Service</Link>
+              <span className="mx-2">/</span>
+              <span>Sandwich Stats</span>
+          </nav>
+          <div className="text-sm text-gray-600">
+              Last update: {formatBlockTime(lastUpdate.getTime(), timezone, 'full')}
+          </div>
+        </div>
+
+        <hr className="my-4 border-t border-gray-300" />
 
         <div className={`${isMobile ? 'mb-6' : 'mb-8'}`}>
           <div className={`flex ${isMobile ? 'flex-col' : 'md:flex-row'} justify-between items-start gap-3`}>
@@ -488,9 +501,9 @@ const SandwichStats = () => {
                 Block Sandwich Attack Monitor
               </h1>
               <div className={`flex ${isMobile ? 'flex-col' : 'flex-row items-center gap-4'}`}>
-                <p className="text-sm text-gray-600 mt-2">
+                {/* <p className="text-sm text-gray-600 mt-2">
                   Last update: {formatBlockTime(lastUpdate.getTime(), timezone, 'full')}
-                </p>
+                </p> */}
                 {stats?.earliest_block && (
                   <p className="text-sm text-gray-600 mt-2">
                     Starting Block: #{formatNumber(stats.earliest_block)}
@@ -498,42 +511,35 @@ const SandwichStats = () => {
                 )}
               </div>
             </div>
-            <div className={`flex ${isMobile ? 'w-full justify-between' : 'items-center'} gap-4`}>
+            <div className={`flex ${isMobile ? 'w-full justify-between' : 'items-center'} gap-2`}>
               {bnbUsdt && (
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-gray-600 flex items-center">
                   1 BNB ≈ ${bnbUsdt.toFixed(2)} USD
                 </div>
               )}
 
-              <button
-                onClick={toggle}
-                aria-pressed={isPaused}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all
-                  ${isPaused
-                    ? 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                    : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
+              <Tooltip 
                 title={isPaused ? 'Resume auto refresh' : 'Pause auto refresh'}
+                placement="top"
               >
-                {isPaused ? (
-                  <>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-                        d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                    </svg>
-                    <span>Auto Refresh Off</span>
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                    <span>Auto Refresh On</span>
-                  </>
-                )}
-              </button>
+                <button
+                  onClick={toggle}
+                  aria-pressed={isPaused}
+                  className={`rounded-full text-sm transition-all duration-200 ease-in-out
+                    ${isPaused
+                      ? 'text-gray-400 hover:text-gray-600'
+                      : 'text-[#F3BA2F] hover:text-amber-500'}`}
+                  aria-label={isPaused ? 'Resume auto refresh' : 'Pause auto refresh'}
+                >
+                  {isPaused ? (
+                    <EyeOutlined className="w-5 h-5" />
+                  ) : (
+                    <EyeInvisibleOutlined className="w-5 h-5" />
+                  )}
+                </button>
+              </Tooltip>
+
+              <div className="h-5 w-px bg-gray-300 hidden sm:block"></div>
 
               <div className={`${isMobile ? 'w-[180px]' : ''}`}>
                 <TimezoneSelector />
@@ -633,7 +639,7 @@ const SandwichStats = () => {
                 }}
                 className={
                   isMobile
-                    ? 'w-full py-2 px-3 rounded-sm bg-[#FFC801] text-[#1E1E1E] text-sm font-medium hover:bg-[#FFD829] transition-all'
+                    ? 'w-full py-2 px-3 rounded bg-[#FFC801] text-[#1E1E1E] text-sm font-medium hover:bg-[#FFD829] transition-all'
                     : 'px-2 py-1 rounded bg-[#FFC801] text-[#1E1E1E] font-medium hover:bg-[#FFD829] transition-all'
                 }
               >
@@ -643,7 +649,7 @@ const SandwichStats = () => {
           </div>
 
 
-          <div className="mt-3">
+          <div className="mt-4">
             <div className="flex justify-between items-center mb-2">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-gray-700">Advanced Filters</span>
@@ -681,7 +687,7 @@ const SandwichStats = () => {
                   value={bundleFilter}
                   onChange={(value) => setBundleFilter(value)}
                   className="w-full text-sm"
-                  size="small"
+                  size="middle"
                   disabled={statsLoading || isPaused}
                 >
                   <Option value="all">All</Option>
@@ -702,7 +708,7 @@ const SandwichStats = () => {
                     });
                   }}
                   className="w-full text-sm"
-                  size="small"
+                  size="middle"
                   disabled={statsLoading || isPaused}
                 >
                   <Option value="0-max">All</Option>
@@ -720,7 +726,7 @@ const SandwichStats = () => {
                   value={frontrunRouter}
                   onChange={(value) => setFrontrunRouter(value)}
                   className="w-full text-sm"
-                  size="small"
+                  size="middle"
                   disabled={statsLoading || isPaused}
                 >
                   <Option value="all">All</Option>
@@ -732,7 +738,7 @@ const SandwichStats = () => {
 
 
             {(bundleFilter !== 'all' || amountRange.min || amountRange.max || frontrunRouter !== 'all') && (
-              <div className="mt-2 text-xs text-gray-500">
+              <div className="mt-4 text-xs text-gray-500">
                 Active filters:
                 {bundleFilter !== 'all' && <span className="ml-1 px-2 py-1 bg-blue-50 text-blue-600 rounded">Bundle: {bundleFilter}</span>}
                 {(amountRange.min || amountRange.max) && (
@@ -787,8 +793,8 @@ const SandwichStats = () => {
                 }}
                 className={
                   isMobile
-                    ? 'w-full px-4 py-2 rounded-sm border border-gray-300 text-gray-700 text-sm hover:bg-gray-50 transition-all'
-                    : 'px-4 py-1 rounded-sm border border-gray-300 text-gray-700 text-sm hover:bg-gray-50 transition-all'
+                    ? 'w-full px-4 py-2 rounded border border-gray-300 text-gray-700 text-sm hover:bg-gray-50 transition-all'
+                    : 'px-4 py-1 rounded border border-gray-300 text-gray-700 text-sm hover:bg-gray-50 transition-all'
                 }
               >
                 Clear
@@ -798,7 +804,7 @@ const SandwichStats = () => {
 
           {!selectedBuilder && stats && (
             <div className="text-sm text-gray-600">
-              <div className="mb-2">Sandwich on Builder Blocks</div>
+              <div className="mt-2">Sandwich on Builder Blocks</div>
               <div className={`${isMobile ? 'text-2xl' : 'text-3xl'} font-bold text-gray-900`}>
                 {stats.sandwich_percentage_on_builder?.toFixed(4)}%
               </div>
@@ -970,106 +976,119 @@ const SandwichStats = () => {
           </div>
 
           {searchResults.length > 0 && (
-            <div className="mt-4 overflow-x-auto">
-              <table className="w-full">
+            <div className="mt-4 mx-auto max-w-[1140px] overflow-x-auto">
+              <table className="w-full min-w-[900px]">
                 <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Block</th>
-                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Profit</th>
-                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Type</th>
-                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Victim Router</th>
-                    <th className="text-left py-2 px-3 text-gray-600 font-medium">FrontRun TX</th>
-                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Victim TX</th>
-                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Backruns TXS</th>
-                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Builder</th>
-                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Validator</th>
+                  <tr className="border-b border-gray-200 bg-gray-50">
+                    <th className="text-left py-2 px-2 text-gray-600 font-medium text-xs">Block</th>
+                    <th className="text-left py-2 px-2 text-gray-600 font-medium text-xs">Profit</th>
+                    <th className="text-left py-2 px-2 text-gray-600 font-medium text-xs">Type</th>
+                    <th className="text-left py-2 px-2 text-gray-600 font-medium text-xs">Victim Router</th>
+                    <th className="text-left py-2 px-2 text-gray-600 font-medium text-xs">FrontRun TX</th>
+                    <th className="text-left py-2 px-2 text-gray-600 font-medium text-xs">Victim TX</th>
+                    <th className="text-left py-2 px-2 text-gray-600 font-medium text-xs">Backruns TXS</th>
+                    <th className="text-left py-2 px-2 text-gray-600 font-medium text-xs">Builder</th>
+                    <th className="text-left py-2 px-2 text-gray-600 font-medium text-xs">Validator</th>
                   </tr>
                 </thead>
                 <tbody>
                   {searchResults.map((r) => (
                     <tr key={r.id} className="border-b border-gray-100 hover:bg-amber-50 transition-colors">
-                      <td className="py-2 px-3">
+                      <td className="py-2 px-2">
                         <a
                           href={`https://bscscan.com/block/${r.block_number}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="font-mono text-amber-600 font-semibold hover:text-amber-700 hover:underline"
+                          className="font-mono text-amber-600 font-semibold hover:text-amber-700 hover:underline text-sm"
                         >
                           #{r.block_number}
                         </a>
                       </td>
-                      <td className="py-2 px-3 font-mono text-gray-800">
-                        {formatWei(r.profit_wei, 18, 4)}{' '}
-                        <a
-                          href={`https://bscscan.com/token/${r.profit_token}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-amber-600 hover:text-amber-700 hover:underline font-semibold"
-                        >
-                          {getTokenSymbol(r.profit_token)}
-                        </a>
+
+                      <td className="py-2 px-2 font-mono text-gray-800">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-sm">{formatWei(r.profit_wei, 18, 4)}</span>
+                          <a
+                            href={`https://bscscan.com/token/${r.profit_token}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-amber-600 hover:text-amber-700 hover:underline font-semibold text-xs"
+                          >
+                            {getTokenSymbol(r.profit_token)}
+                          </a>
+                        </div>
                       </td>
-                      <td className="py-2 px-3">
+
+                      <td className="py-2 px-2">
                         {r.is_bundle ? (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-500">
                             bundle{r.bundle_size ? ` (${r.bundle_size})` : ''}
                           </span>
                         ) : (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-700">
                             non-bundle
                           </span>
                         )}
                       </td>
-                      <td className="py-2 px-3">
+
+                      <td className="py-2 px-2">
                         <a
                           href={`https://bscscan.com/address/${r.victim_to}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="font-mono text-xs text-gray-500 hover:text-gray-700 hover:underline"
+                          className="font-mono text-[10px] text-gray-500 hover:text-gray-700 hover:underline"
                         >
-                          {short(r.victim_to)}
+                          {short(r.victim_to, 8)}
                         </a>
                       </td>
-                      <td className="py-2 px-3">
+
+                      <td className="py-2 px-2">
                         <a
                           href={`https://bscscan.com/tx/${r.front_tx_hash}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="font-mono text-xs text-gray-500 hover:text-gray-700 hover:underline"
+                          className="font-mono text-[10px] text-gray-500 hover:text-gray-700 hover:underline"
                         >
-                          {short(r.front_tx_hash)}
+                          {short(r.front_tx_hash, 8)}
                         </a>
                       </td>
-                      <td className="py-2 px-3">
+
+                      <td className="py-2 px-2">
                         <a
                           href={`https://bscscan.com/tx/${r.victim_tx_hash}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="font-mono text-xs text-gray-500 hover:text-gray-700 hover:underline"
+                          className="font-mono text-[10px] text-gray-500 hover:text-gray-700 hover:underline"
                         >
-                          {short(r.victim_tx_hash)}
+                          {short(r.victim_tx_hash, 8)}
                         </a>
                       </td>
-                      <td className="py-2 px-3">
-                        <div className="flex flex-col gap-1">
+
+                      <td className="py-2 px-2">
+                        <div className="flex flex-col gap-0.5">
                           {r.backrun_txes?.slice(0, 2).map((h, i) => (
                             <a
                               key={h}
                               href={`https://bscscan.com/tx/${h}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="font-mono text-xs text-gray-500 hover:text-gray-700 hover:underline"
+                              className="font-mono text-[10px] text-gray-500 hover:text-gray-700 hover:underline"
                             >
-                              {i + 1}. {short(h)}
+                              {i + 1}. {short(h, 8)}
                             </a>
                           ))}
                           {r.backrun_txes?.length > 2 && (
-                            <span className="text-xs text-gray-400">+{r.backrun_txes.length - 2} more</span>
+                            <span className="text-[10px] text-gray-400">+{r.backrun_txes.length - 2} more</span>
                           )}
                         </div>
                       </td>
-                      <td className="py-2 px-3 text-gray-700">{r.builder_name || '-'}</td>
-                      <td className="py-2 px-3 text-gray-700">{r.validator_name || '-'}</td>
+
+                      <td className="py-2 px-2 text-gray-700 text-sm">
+                        {r.builder_name || <span className="text-gray-400">-</span>}
+                      </td>
+                      <td className="py-2 px-2 text-gray-700 text-sm">
+                        {r.validator_name || <span className="text-gray-400">-</span>}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -1284,67 +1303,73 @@ const SandwichStats = () => {
             ></span>
             Recent Blocks
           </h2>
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="max-w-[1140px] mx-auto overflow-x-auto">
+            <table className="w-full min-w-[600px]">
               <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-3 px-4 text-gray-600 font-medium">Block Number</th>
-                  <th className="text-left py-3 px-4 text-gray-600 font-medium">Status</th>
-                  <th className="text-left py-3 px-4 text-gray-600 font-medium">Time</th>
-                  <th className="text-left py-3 px-4 text-gray-600 font-medium">Builder</th>
-                  <th className="text-left py-3 px-4 text-gray-600 font-medium">Validator</th>
+                <tr className="border-b border-gray-200 bg-gray-50">
+                  <th className="text-left py-2 px-3 text-gray-600 font-medium text-sm">Block Number</th>
+                  <th className="text-left py-2 px-3 text-gray-600 font-medium text-sm">Status</th>
+                  <th className="text-left py-2 px-3 text-gray-600 font-medium text-sm">Time</th>
+                  <th className="text-left py-2 px-3 text-gray-600 font-medium text-sm">Builder</th>
+                  <th className="text-left py-2 px-3 text-gray-600 font-medium text-sm">Validator</th>
                 </tr>
               </thead>
               <tbody>
                 {blocksLoading ? (
-
                   Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i} className="border-b border-gray-100">
-                      <td className="py-3 px-4">
-                        <div className="animate-pulse h-4 bg-gray-200 rounded w-20"></div>
-                      </td>
-                      <td className="py-3 px-4">
+                      <td className="py-2 px-3">
                         <div className="animate-pulse h-4 bg-gray-200 rounded w-16"></div>
                       </td>
-                      <td className="py-3 px-4">
-                        <div className="animate-pulse h-4 bg-gray-200 rounded w-32"></div>
+                      <td className="py-2 px-3">
+                        <div className="animate-pulse h-5 bg-gray-200 rounded w-20"></div>
                       </td>
-                      <td className="py-3 px-4">
-                        <div className="animate-pulse h-4 bg-gray-200 rounded w-24"></div>
+                      <td className="py-2 px-3">
+                        <div className="animate-pulse h-4 bg-gray-200 rounded w-28"></div>
                       </td>
-                      <td className="py-3 px-4">
-                        <div className="animate-pulse h-4 bg-gray-200 rounded w-24"></div>
+                      <td className="py-2 px-3">
+                        <div className="animate-pulse h-4 bg-gray-200 rounded w-20"></div>
+                      </td>
+                      <td className="py-2 px-3">
+                        <div className="animate-pulse h-4 bg-gray-200 rounded w-20"></div>
                       </td>
                     </tr>
                   ))
                 ) : recentBlocks.map((block, i) => (
                   <tr key={i} className="border-b border-gray-100 hover:bg-amber-50 transition-colors">
-                    <td className="py-3 px-4">
+                    <td className="py-2 px-3">
                       <a
                         href={`https://bscscan.com/block/${block.block_number}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="font-mono text-amber-600 font-medium hover:text-amber-700 hover:underline"
+                        className="font-mono text-amber-600 font-medium hover:text-amber-700 hover:underline text-sm"
                       >
                         #{block.block_number}
                       </a>
                     </td>
-                    <td className="py-3 px-4">
+                    
+                    <td className="py-2 px-3">
                       {block.has_sandwich ? (
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
                           🥪 Sandwich Detected
                         </span>
                       ) : (
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                           ✓ Clean
                         </span>
                       )}
                     </td>
-                    <td className="py-3 px-4 text-gray-500 text-sm">
+                    
+                    <td className="py-2 px-3 text-gray-500 text-xs whitespace-nowrap">
                       {formatBlockTime(block.block_time_ms || block.block_time || block.updated_at, timezone, 'full')}
                     </td>
-                    <td className="py-3 px-4 text-gray-700">{block.builder_name || '-'}</td>
-                    <td className="py-3 px-4 text-gray-700">{block.validator_name || '-'}</td>
+                    
+                    <td className="py-2 px-3 text-gray-700 text-sm">
+                      {block.builder_name || <span className="text-gray-400">-</span>}
+                    </td>
+                    <td className="py-2 px-3 text-gray-700 text-sm">
+                      {block.validator_name || <span className="text-gray-400">-</span>}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -1495,78 +1520,84 @@ const SandwichStats = () => {
                   </div>
                 ) : (
                   <>
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
+                    <div className="overflow-x-auto text-xs">
+                      <table className="w-full min-w-[500px]">
                         <thead>
-                          <tr className="border-b border-gray-200">
-                            <th className="text-left py-2 px-3 text-gray-600 font-medium">Block</th>
-                            <th className="text-left py-2 px-3 text-gray-600 font-medium">Time</th>
-                            <th className="text-left py-2 px-3 text-gray-600 font-medium">Front TX</th>
-                            <th className="text-left py-2 px-3 text-gray-600 font-medium">Victim TX</th>
-                            <th className="text-left py-2 px-3 text-gray-600 font-medium">Backruns</th>
-                            <th className="text-left py-2 px-3 text-gray-600 font-medium">Validator</th>
+                          <tr className="border-b border-gray-200 bg-gray-50">
+                            <th className="text-left py-1.5 px-2 text-gray-600 font-medium">Block</th>
+                            <th className="text-left py-1.5 px-2 text-gray-600 font-medium">Time</th>
+                            <th className="text-left py-1.5 px-2 text-gray-600 font-medium">Front TX</th>
+                            <th className="text-left py-1.5 px-2 text-gray-600 font-medium">Victim TX</th>
+                            <th className="text-left py-1.5 px-2 text-gray-600 font-medium">Backruns</th>
+                            <th className="text-left py-1.5 px-2 text-gray-600 font-medium">Validator</th>
                           </tr>
                         </thead>
                         <tbody>
                           {builderSandwiches.map((s) => (
-                            <tr key={s.id} className="border-b border-gray-100 hover:bg-amber-50">
-                              <td className="py-2 px-3">
+                            <tr key={s.id} className="border-b border-gray-100 hover:bg-amber-50 transition-colors">
+                              <td className="py-1.5 px-2">
                                 <a
                                   href={`https://bscscan.com/block/${s.block_number}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="font-mono text-amber-600 hover:text-amber-700 hover:underline"
+                                  title={`Block #${s.block_number}`}
                                 >
                                   #{s.block_number}
                                 </a>
                               </td>
-                              <td className="py-2 px-3 text-gray-600 text-sm">
+                              <td className="py-1.5 px-2 text-gray-600 whitespace-nowrap">
                                 {s.block_time_ms ?
-                                  formatBlockTime(s.block_time_ms, timezone, 'full') :
-                                  formatBlockTime(s.block_time, timezone, 'full')}
+                                  formatBlockTime(s.block_time_ms, timezone, 'short') :
+                                  formatBlockTime(s.block_time, timezone, 'short')}
                               </td>
-                              <td className="py-2 px-3">
+                              <td className="py-1.5 px-2">
                                 <a
                                   href={`https://bscscan.com/tx/${s.front_tx_hash}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="font-mono text-xs text-blue-600 hover:text-blue-700 hover:underline"
+                                  className="font-mono text-blue-600 hover:text-blue-700 hover:underline"
+                                  title={s.front_tx_hash}
                                 >
-                                  {s.front_tx_hash.slice(0, 10)}...
+                                  {s.front_tx_hash.slice(0, 8)}...
                                 </a>
                               </td>
-                              <td className="py-2 px-3">
+                              <td className="py-1.5 px-2">
                                 <a
                                   href={`https://bscscan.com/tx/${s.victim_tx_hash}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="font-mono text-xs text-red-600 hover:text-red-700 hover:underline"
+                                  className="font-mono text-red-600 hover:text-red-700 hover:underline"
+                                  title={s.victim_tx_hash}
                                 >
                                   {s.victim_tx_hash.slice(0, 10)}...
                                 </a>
                               </td>
-                              <td className="py-2 px-3">
-                                <div className="flex flex-col gap-1">
+                              <td className="py-1.5 px-2">
+                                <div className="flex flex-col gap-0.5">
                                   {s.backrun_txes?.slice(0, 2).map((h, i) => (
                                     <a
                                       key={h}
                                       href={`https://bscscan.com/tx/${h}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="font-mono text-xs text-gray-500 hover:text-gray-700 hover:underline"
+                                      className="font-mono text-gray-500 hover:text-gray-700 hover:underline"
+                                      title={h}
                                     >
                                       {i + 1}. {h.slice(0, 8)}...
                                     </a>
                                   ))}
                                   {s.backrun_txes?.length > 2 && (
-                                    <span className="text-xs text-gray-400">
-                                      +{s.backrun_txes.length - 2} more
+                                    <span className="text-gray-400" title={`${s.backrun_txes.length - 2} more transactions`}>
+                                      +{s.backrun_txes.length - 2}
                                     </span>
                                   )}
                                 </div>
                               </td>
-                              <td className="py-2 px-3 text-gray-700 text-sm">
-                                {s.validator_name || '-'}
+                              <td className="py-1.5 px-2 text-gray-700">
+                                <div className="max-w-[80px] truncate" title={s.validator_name || 'Unknown'}>
+                                  {s.validator_name || '-'}
+                                </div>
                               </td>
                             </tr>
                           ))}
