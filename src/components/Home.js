@@ -8,7 +8,7 @@ const Home = () => (
 
 
     <p className="text-lg">
-      Welcome to Data Monitor! <br />
+      Welcome to Data Center! <br />
     </p>
   </div>
 );

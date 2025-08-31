@@ -38,7 +38,14 @@ function Navbar() {
           {/* Logo和导航链接 */}
           <div className="flex items-center">
             <div className="flex-shrink-0 flex items-center mr-8">
-              <h1 className="text-[20px] font-bold tracking-wide text-[#F3BA2F]">Data Monitor</h1>
+              <a href="/" className="flex items-center">
+                <img 
+                  src="/logo-48club.svg" 
+                  alt="48 Club" 
+                  className="h-3 md:h-5 mr-3"
+                />
+                <h1 className="text-[20px] font-bold tracking-wide text-[#F3BA2F]">Data Center</h1>
+              </a>
             </div>
             
             {/* 桌面端导航 */}
@@ -72,6 +79,12 @@ function Navbar() {
             {user ? (
               <>
                 <span className="text-[#4A4A4A] text-sm">Welcome, {user.username}</span>
+                <a
+                  href="https://www.48.club"
+                  className="border-2 border-[#FFC801] hover:bg-[#FFC801] hover:text-[#1E1E1E] text-[#1E1E1E] px-4 py-[6px] rounded-sm text-sm transition-all"
+                >
+                  ← 48 Club
+                </a>
                 <button
                   onClick={handleLogout}
                   className="bg-[#FFC801] hover:brightness-95 text-[#1E1E1E] px-4 py-2 rounded-sm text-sm transition-all shadow"
@@ -136,6 +149,12 @@ function Navbar() {
               {user ? (
                 <div className="px-3">
                   <div className="text-[#4A4A4A] text-sm mb-3">Welcome, {user.username}</div>
+                  <a
+                    href="https://www.48.club"
+                    className="w-full mb-2 block text-center border-2 border-[#FFC801] hover:bg-[#FFC801] text-[#1E1E1E] px-4 py-2 rounded-sm text-sm transition-all"
+                  >
+                    ← 48 Club
+                  </a>
                   <button
                     onClick={() => {
                       handleLogout();
