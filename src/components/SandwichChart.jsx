@@ -43,6 +43,14 @@ const SandwichChart = ({ dateRange }) => {
   const [builderFilter, setBuilderFilter] = useState('all'); 
   const { timezone } = useTimezone();
 
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(typeof window !== 'undefined' && window.innerWidth < 640);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
   useEffect(() => {
     loadChartData();
   }, [dateRange.start, dateRange.end, interval, builderFilter]);
@@ -58,17 +66,18 @@ const SandwichChart = ({ dateRange }) => {
         dateRange.end,
         buildersToFetch
       );
-      
-   
+
       if (data.series) {
         data.series = data.series.map(item => ({
           ...item,
-          displayDate: formatBlockTime(new Date(item.date).getTime(), timezone, 
+          displayDate: formatBlockTime(
+            new Date(item.date).getTime(),
+            timezone,
             interval === 'hourly' ? 'short' : 'date'
           )
         }));
       }
-      
+
       setChartData(data);
 
       if (data.summary?.builders) {
@@ -107,17 +116,18 @@ const SandwichChart = ({ dateRange }) => {
 
   return (
     <div className="bg-white rounded-xl p-6 border border-gray-200">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="relative pl-3 text-base font-semibold text-gray-900 mb-4 leading-6">
-            <span
-              aria-hidden="true"
-              className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 bg-yellow-400"
-            ></span>
-            Sandwich Rate Trends
-          </h2>
-        <div className="flex gap-3">
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3 md:gap-0 mb-6">
+        <h2 className="relative pl-3 text-base font-semibold text-gray-900 leading-6 md:mb-0">
+          <span
+            aria-hidden="true"
+            className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 bg-yellow-400"
+          ></span>
+          Sandwich Rate Trends
+        </h2>
+
+        <div className="w-full md:w-auto grid grid-cols-1 sm:grid-cols-2 md:flex md:flex-row gap-3">
           {/* Builder Selector */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
             <span className="text-sm text-gray-600">Builder:</span>
             <Select
               value={builderFilter}
@@ -126,36 +136,36 @@ const SandwichChart = ({ dateRange }) => {
                 { value: 'all', label: 'All Top Builders' },
                 ...availableBuilders.map((b) => ({ value: b, label: b }))
               ]}
-               style={{ width: 180 }}
+              style={{ width: isMobile ? '100%' : 180 }}
             />
           </div>
 
           {/* Interval Selector */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
             <span className="text-sm text-gray-600">Interval:</span>
             <Select
               value={interval}
               onChange={(value) => setInterval(value)}
               options={intervalOptions}
-              style={{ width: 120 }}
+              style={{ width: isMobile ? '100%' : 120 }}
             />
           </div>
 
           {/* Chart Type Selector */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
             <span className="text-sm text-gray-600">Chart Type:</span>
             <Select
               value={chartType}
               onChange={(value) => setChartType(value)}
               options={chartTypeOptions}
-               style={{ width: 120 }}
+              style={{ width: isMobile ? '100%' : 140 }}
             />
           </div>
         </div>
       </div>
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div className="bg-amber-50 rounded p-3">
           <div className="text-xs text-gray-600">Avg Rate</div>
           <div className="text-xl font-bold text-amber-600">
@@ -182,27 +192,26 @@ const SandwichChart = ({ dateRange }) => {
         </div>
       </div>
 
-      {/* Main Chart */}
-      <ResponsiveContainer width="100%" height={400}>
+      <ResponsiveContainer width="100%" height={isMobile ? 300 : 420}>
         {chartType === 'line' ? (
           <LineChart data={chartData.series}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis
               dataKey="displayDate"
-              tick={{ fontSize: 12 }}
-              angle={-45}
-              textAnchor="end"
-              height={80}
+              tick={{ fontSize: isMobile ? 10 : 12 }}
+              angle={isMobile ? 0 : -45}
+              textAnchor={isMobile ? 'middle' : 'end'}
+              height={isMobile ? 40 : 80}
             />
             <YAxis
               label={{ value: 'Sandwich Rate (%)', angle: -90, position: 'insideLeft' }}
-              tick={{ fontSize: 12 }}
+              tick={{ fontSize: isMobile ? 10 : 12 }}
             />
             <Tooltip
               formatter={(value) => `${value}%`}
               labelFormatter={(label) => `Time: ${label}`}
             />
-            <Legend />
+            {!isMobile && <Legend />}
 
             {/* Overall rate line */}
             <Line
@@ -233,20 +242,20 @@ const SandwichChart = ({ dateRange }) => {
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis
               dataKey="displayDate"
-              tick={{ fontSize: 12 }}
-              angle={-45}
-              textAnchor="end"
-              height={80}
+              tick={{ fontSize: isMobile ? 10 : 12 }}
+              angle={isMobile ? 0 : -45}
+              textAnchor={isMobile ? 'middle' : 'end'}
+              height={isMobile ? 40 : 80}
             />
             <YAxis
               label={{ value: 'Sandwich Rate (%)', angle: -90, position: 'insideLeft' }}
-              tick={{ fontSize: 12 }}
+              tick={{ fontSize: isMobile ? 10 : 12 }}
             />
             <Tooltip
               formatter={(value) => `${value}%`}
               labelFormatter={(label) => `Time: ${label}`}
             />
-            <Legend />
+            {!isMobile && <Legend />}
 
             {builders.map((builder, index) => (
               <Area
@@ -266,21 +275,21 @@ const SandwichChart = ({ dateRange }) => {
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis
               dataKey="displayDate"
-              tick={{ fontSize: 12 }}
-              angle={-45}
-              textAnchor="end"
-              height={80}
+              tick={{ fontSize: isMobile ? 10 : 12 }}
+              angle={isMobile ? 0 : -45}
+              textAnchor={isMobile ? 'middle' : 'end'}
+              height={isMobile ? 40 : 80}
             />
             <YAxis
               yAxisId="left"
               label={{ value: 'Sandwich Rate (%)', angle: -90, position: 'insideLeft' }}
-              tick={{ fontSize: 12 }}
+              tick={{ fontSize: isMobile ? 10 : 12 }}
             />
             <YAxis
               yAxisId="right"
               orientation="right"
               label={{ value: 'Total Blocks', angle: 90, position: 'insideRight' }}
-              tick={{ fontSize: 12 }}
+              tick={{ fontSize: isMobile ? 10 : 12 }}
             />
             <Tooltip
               formatter={(value, name) => {
@@ -289,7 +298,7 @@ const SandwichChart = ({ dateRange }) => {
               }}
               labelFormatter={(label) => `Time: ${label}`}
             />
-            <Legend />
+            {!isMobile && <Legend />}
 
             {/* Bar for total blocks */}
             <Bar

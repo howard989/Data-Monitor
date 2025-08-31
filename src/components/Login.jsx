@@ -38,19 +38,19 @@ function Login() {
   return (
     <div className="min-h-[calc(100vh-66px)] flex items-center justify-center px-4 bg-gradient-to-br from-[#F7F9FC] via-white to-[#EEF2FF]">
       <div className="w-full max-w-[400px] bg-white border border-gray-200 rounded-sm shadow-sm p-6 md:p-8">
-        <h1 className="text-center text-2xl font-semibold text-gray-900 mb-2">
+        <h1 className="text-center text-2xl font-semibold text-gray-900 mb-6">
           Welcome to Data Monitor
         </h1>
 
         {error && (
-          <div className="mb-4 rounded-sm border border-red-200 bg-red-50 text-red-600 text-sm px-3 py-2">
+          <div className="mb-5 rounded-sm border border-red-200 bg-red-50 text-red-600 text-sm px-3 py-2">
             {error}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="block mb-1 text-sm text-gray-600">Username</label>
+            <label className="block mb-2 text-sm text-gray-600">Username</label>
             <Input
               value={username}
               onChange={(e) => setUsername(e.target.value)}
@@ -60,12 +60,12 @@ function Login() {
               disabled={loading}
               autoComplete="username"
               className="rounded-sm"
-              style={{ borderRadius: 2 }}
+              style={{ borderRadius: 2, height: 44 }}
             />
           </div>
 
           <div>
-            <label className="block mb-1 text-sm text-gray-600">Password</label>
+            <label className="block mb-2 text-sm text-gray-600">Password</label>
             <Input.Password
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -74,7 +74,7 @@ function Login() {
               disabled={loading}
               autoComplete="current-password"
               className="rounded-sm"
-              style={{ borderRadius: 2 }}
+              style={{ borderRadius: 2, height: 44 }}
             />
           </div>
 
@@ -83,8 +83,8 @@ function Login() {
             htmlType="submit"
             block
             disabled={loading}
-            className="rounded-sm h-10"
-            style={{ borderRadius: 2, height: 40 }}
+            className="rounded-sm"
+            style={{ borderRadius: 2, height: 44 }}
           >
             {loading ? (
               <span className="inline-flex items-center justify-center gap-2">
