@@ -680,7 +680,7 @@ const SandwichStats = () => {
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-4">
           <nav className="text-sm text-gray-600">
-            <Link to="/service" className="text-[#F3BA2F] hover:underline">Service</Link>
+            <Link to="/data-center" className="text-[#F3BA2F] hover:underline">Data Center</Link>
             <span className="mx-2">/</span>
             <span>Sandwich Stats</span>
           </nav>

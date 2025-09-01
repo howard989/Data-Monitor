@@ -1,9 +1,8 @@
-// src/components/Service.jsx
 import React, { useMemo, useState } from 'react';
 import { Segmented, Card, Tag, Row, Col, Button, Space } from 'antd';
 import { AppstoreOutlined, BlockOutlined, BuildOutlined } from '@ant-design/icons';
 
-function Service() {
+function DataCenter() {
 
   const [category, setCategory] = useState('all');
 
@@ -13,7 +12,7 @@ function Service() {
     { label: <Space size={6}><BuildOutlined /><span>builder</span></Space>, value: 'builder' },
   ];
 
-  /** 卡片数据 */
+
   const items = useMemo(
     () => [
       {
@@ -24,28 +23,10 @@ function Service() {
         enabled: true,
         href: '/sandwich-stats',
       },
-    //   {
-    //     title: 'Sniping Orders',
-    //     description: 'Limit orders for sniping',
-    //     categoryKey: 'builder',
-    //     chains: ['BNB'],
-    //     enabled: false,
-    //     href: '/service/sniper',
-    //   },
-    //   {
-    //     title: 'Copy Trading',
-    //     description:
-    //       'BNB Chain offers the fastest order-following service within the same region.',
-    //     categoryKey: 'builder',
-    //     chains: ['BNB'],
-    //     enabled: false,
-    //     href: '/service/copy-trading',
-    //   },
     ],
     []
   );
 
-  /** Tag 颜色映射 */
   const chainTagColor = (chain) => {
     switch (chain) {
       case 'EVM':
@@ -63,7 +44,7 @@ function Service() {
     return list.slice().sort((a, b) => Number(b.enabled) - Number(a.enabled));
   }, [category, items]);
 
-  /** 分类图标） */
+
   const categoryIcon = (key) => {
     if (key === 'block') return <BlockOutlined />;
     if (key === 'builder') return <BuildOutlined />;
@@ -71,13 +52,12 @@ function Service() {
   };
 
   return (
-    <div className="service-root min-h-[calc(100vh-66px)] overflow-y-auto">
+    <div className="DataCenter-root min-h-[calc(100vh-66px)] overflow-y-auto">
 
       <div className="max-w-6xl mx-auto px-3 sm:px-4 py-6 sm:py-8">
-        {/* 顶部导航 */}
         <div className="flex justify-center mb-6 sm:mb-8">
           <Segmented
-            className="service-seg w-full max-w-xl"
+            className="DataCenter-seg w-full max-w-xl"
             options={SEGMENTED_OPTIONS}
             value={category}
             onChange={(val) => setCategory(String(val))}
@@ -85,7 +65,7 @@ function Service() {
           />
         </div>
 
-        {/* 列表区域 */}
+
         <Row gutter={[16, 16]}>
           {displayed.map((item, idx) => (
             <Col xs={24} md={12} key={idx}>
@@ -95,12 +75,10 @@ function Service() {
                 bodyStyle={{ padding: 16 }}
               >
                 <div className="relative">
-                  {/* 右上角分类图标 */}
                   <div className="absolute right-3 top-3 text-gray-300 text-lg">
                     {categoryIcon(item.categoryKey)}
                   </div>
 
-                  {/* 文字部分 */}
                   <div className="pr-28 pb-10">
                     <div className="text-gray-900 text-base md:text-lg font-semibold mb-1">
                       {item.title}
@@ -116,7 +94,6 @@ function Service() {
                     </Space>
                   </div>
 
-                  {/* 右下角按钮 */}
                   <div className="absolute right-3 bottom-1">
                     {item.enabled ? (
                       <Button
@@ -143,4 +120,4 @@ function Service() {
   );
 }
 
-export default Service;
+export default DataCenter;

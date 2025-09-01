@@ -8,7 +8,7 @@ import Navbar from './components/Navbar';
 import PrivateRoute from './components/PrivateRoute';
 import ArbDetails from './components/ArbDetails';
 import SandwichStats from './components/SandwichStats';
-import Service from './components/Service';
+import DataCenter from './components/DataCenter';
 import { TimezoneProvider } from './context/TimezoneContext';
 
 const antdTheme = {
@@ -43,7 +43,7 @@ function App() {
                                     path="/"
                                     element={
                                         <PrivateRoute>
-                                            <Service />
+                                            <DataCenter />
                                         </PrivateRoute>
                                     }
                                 />
@@ -58,22 +58,15 @@ function App() {
                                 />
 
                                 <Route
-                                    path="/service"
+                                    path="/data-center"
                                     element={
                                         <PrivateRoute>
-                                            <Service />
+                                            <DataCenter />
                                         </PrivateRoute>
                                     }
                                 />
                                 
-                                {/* <Route
-                                    path="/arb-details"
-                                    element={
-                                        <PrivateRoute>
-                                            <ArbDetails />
-                                        </PrivateRoute>
-                                    }
-                                /> */}
+                    
 
                                 <Route path="/login" element={<Login />} />
 

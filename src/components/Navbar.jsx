@@ -53,19 +53,6 @@ function Navbar() {
               </a>
             </div>
             
-            {/* Desktop navigation */}
-            {/* <div className="hidden md:flex md:items-center md:space-x-6">
-              <NavLink 
-                to="/sandwich-stats" 
-                className={({ isActive }) =>
-                  isActive
-                    ? 'text-black inline-flex items-center px-1 pt-1 border-b-2 border-[#FFC801] text-[15px] font-semibold h-full'
-                    : 'text-[#1E1E1E] hover:text-black inline-flex items-center px-1 pt-1 border-b-2 border-transparent text-[15px] font-medium h-full transition-colors'
-                }
-              >
-                Sandwich Stats
-              </NavLink>
-            </div> */}
           </div>
 
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -129,29 +116,6 @@ function Navbar() {
         ].join(' ')}
       >
         <div className="max-w-[1140px] mx-auto px-2 pt-2 pb-3 space-y-1">
-          {/* <NavLink
-            to="/"
-            onClick={() => setMenuOpen(false)}
-            className={({ isActive }) =>
-              isActive
-                ? 'text-[#FF5733] block px-3 py-2 rounded-md text-base font-medium bg-orange-50'
-                : 'text-[#4A4A4A] hover:text-[#FF5733] hover:bg-gray-50 block px-3 py-2 rounded-md text-base font-medium'
-            }
-          >
-            48club &lt;&gt; Binance Wallet
-          </NavLink> */}
-
-          {/* <NavLink
-            to="/sandwich-stats"
-            onClick={() => setMenuOpen(false)}
-            className={({ isActive }) =>
-              isActive
-                ? 'text-black block px-3 py-2 rounded-md text-base font-bold bg-yellow-50'
-                : 'text-[#1E1E1E] hover:text-black hover:bg-gray-50 block px-3 py-2 rounded-md text-base font-medium'
-            }
-          >
-            Sandwich Stats
-          </NavLink> */}
 
           <div className="pt-4 pb-3 border-t border-gray-200">
             {user ? (
