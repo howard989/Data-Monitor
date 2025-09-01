@@ -10,6 +10,7 @@ import {
 } from '../data/apiSandwichStats';
 import { useTimezone } from '../context/TimezoneContext';
 import { formatBlockTime } from '../utils/timeFormatter';
+import { monthRangeFromUtcMs, prevMonthRangeFromUtcMs, getAnchorMs } from '../utils/dateHelpers';
 import TimezoneSelector from './TimezoneSelector';
 import SandwichChart from './SandwichChart';
 import SandwichFilter from './SandwichFilter';
@@ -993,16 +994,8 @@ const SandwichStats = () => {
             <div className={`flex gap-2 ${isMobile ? 'w-full' : ''}`}>
               <button
                 onClick={() => {
-                  const now = new Date();
-                  const year = now.getUTCFullYear();
-                  const month = now.getUTCMonth();
-                  const monthStart = new Date(Date.UTC(year, month, 1));
-                  const nextMonthFirst = new Date(Date.UTC(year, month + 1, 1));
-                  const monthEnd = new Date(nextMonthFirst.getTime() - 24*60*60*1000);
-                  setDateRange({
-                    start: monthStart.toISOString().split('T')[0],
-                    end: monthEnd.toISOString().split('T')[0]
-                  });
+                  const anchor = getAnchorMs(recentBlocks);
+                  setDateRange(monthRangeFromUtcMs(anchor));
                 }}
                 className="px-3 py-1 text-sm bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors"
                 disabled={statsLoading || isPaused}
@@ -1011,16 +1004,8 @@ const SandwichStats = () => {
               </button>
               <button
                 onClick={() => {
-                  const now = new Date();
-                  const year = now.getUTCFullYear();
-                  const month = now.getUTCMonth();
-                  const lastMonthStart = new Date(Date.UTC(year, month - 1, 1));
-                  const thisMonthFirst = new Date(Date.UTC(year, month, 1));
-                  const lastMonthEnd = new Date(thisMonthFirst.getTime() - 24*60*60*1000);
-                  setDateRange({
-                    start: lastMonthStart.toISOString().split('T')[0],
-                    end: lastMonthEnd.toISOString().split('T')[0]
-                  });
+                  const anchor = getAnchorMs(recentBlocks);
+                  setDateRange(prevMonthRangeFromUtcMs(anchor));
                 }}
                 className="px-3 py-1 text-sm bg-gray-50 text-gray-600 rounded hover:bg-gray-100 transition-colors"
                 disabled={statsLoading || isPaused}
