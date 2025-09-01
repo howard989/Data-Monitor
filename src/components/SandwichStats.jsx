@@ -345,58 +345,6 @@ const SandwichStats = () => {
     setBlockSearched(false);
   };
 
-  const runSearch = async (page = 1) => {
-    setSearchLoading(true);
-    setHasSearched(true);
-    try {
-      const isRouterFilled = !!(filterVictimTo && filterVictimTo.trim());
-      const limitToUse = isRouterFilled ? 50 : searchLimit; 
-
-      const params = { page, limit: limitToUse, sortBy: filterSortBy };
-      if (filterVictimTo) params.victim_to = filterVictimTo.trim().toLowerCase();
-      if (filterIsBundle !== '') params.is_bundle = (filterIsBundle === 'true');
-      if (searchDateRange.start && searchDateRange.end) {
-        params.startDate = searchDateRange.start;
-        params.endDate = searchDateRange.end;
-      }
-      if (selectedBuilder) params.builder = selectedBuilder;
-
-      if (filterSortBy === 'profit' && bnbUsdt) {
-        params.bnbUsd = bnbUsdt;
-      }
-
-      const res = await fetchSandwichSearch(params);
-      
-      if (res.success === false) {
-        console.error('Search returned error:', res.error);
-        setSearchResults([]);
-        setSearchTotal(0);
-        setSearchTotalPages(0);
-        if (res.error) {
-          alert(res.error);
-        }
-      } else {
-        setSearchResults(res.data || []);
-        setSearchPage(res.page || page);
-        setSearchTotal(res.total || 0);
-        setSearchTotalPages(res.totalPages || Math.ceil((res.total || 0) / limitToUse));
-        
-        if ((!res.data || res.data.length === 0) && res.total > 0 && page > 1) {
-          // Auto retry from page 1
-          setSearchPage(1);
-          return runSearch(1);
-        }
-      }
-    } catch (e) {
-      console.error('Search failed', e);
-      setSearchResults([]);
-      setSearchTotal(0);
-      setSearchTotalPages(0);
-      alert('Search failed. Please check your input and try again.');
-    } finally {
-      setSearchLoading(false);
-    }
-  };
 
   const clearSearch = () => {
     setFilterVictimTo('');
@@ -412,13 +360,12 @@ const SandwichStats = () => {
   };
 
 
-  const doSearch = useCallback(async (page = 1, filters = searchFilters) => {
+  const doSearch = useCallback(async (page = 1, filters = searchFilters, pageSizeOverride = null) => {
     if (!filters) return;
     
     setSearchLoading(true);
     try {
-      const isRouterFilled = !!(filters.victimTo && filters.victimTo.trim());
-      const limitToUse = isRouterFilled ? 50 : searchLimit;
+      const limitToUse = pageSizeOverride ?? searchLimit;
 
       const params = { page, limit: limitToUse, sortBy: filters.sortBy || 'time' };
       if (filters.victimTo) params.victim_to = filters.victimTo.trim().toLowerCase();
@@ -449,7 +396,7 @@ const SandwichStats = () => {
       } else {
         setSearchResults(res.data || []);
         setSearchTotal(res.total || 0);
-        setSearchTotalPages(res.totalPages || 0);
+        setSearchTotalPages(res.totalPages || Math.ceil((res.total || 0) / limitToUse));
         setSearchPage(page);
         setSearchLimit(limitToUse);
       }
@@ -473,11 +420,8 @@ const SandwichStats = () => {
 
   const handleFilterPageChange = useCallback((page, pageSize) => {
     setSearchPage(page);
-    if (pageSize !== searchLimit) {
-      setSearchLimit(pageSize);
-    }
-    doSearch(page);
-  }, [searchLimit, doSearch]);
+    doSearch(page, searchFilters, pageSize);
+  }, [doSearch, searchFilters]);
 
 
 
@@ -552,12 +496,6 @@ const SandwichStats = () => {
 
   const [hasSearched, setHasSearched] = useState(false);
 
-
-  // useEffect(() => {
-  //   if (hasSearched && !isPaused) {
-  //     runSearch(1);
-  //   }
-  // }, [filterSortBy, searchDateRange.start, searchDateRange.end, isPaused]);
 
   const formatNumber = (num) => {
     return new Intl.NumberFormat('en-US').format(num);
@@ -698,9 +636,6 @@ const SandwichStats = () => {
                 Block Sandwich Attack Monitor
               </h1>
               <div className={`flex ${isMobile ? 'flex-col' : 'flex-row items-center gap-4'}`}>
-                {/* <p className="text-sm text-gray-600 mt-2">
-                  Last update: {formatBlockTime(lastUpdate.getTime(), timezone, 'full')}
-                </p> */}
                 {stats?.earliest_block && (
                   <p className="text-sm text-gray-600 mt-2">
                     Starting Block: #{formatNumber(stats.earliest_block)}
@@ -1187,11 +1122,6 @@ const SandwichStats = () => {
           currentPage={searchPage}
           pageSize={searchLimit}
           onPageChange={handleFilterPageChange}
-          onPageSizeChange={(size) => {
-            setSearchLimit(size);
-            setSearchPage(1);
-            doSearch(1);
-          }}
           className="mb-8"
         />
 

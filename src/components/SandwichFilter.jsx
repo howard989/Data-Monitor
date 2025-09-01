@@ -1,5 +1,4 @@
-// src/components/SandwichFilter.jsx
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Select, Input, Button, Pagination } from 'antd';
 import DateRangePicker from './common/DateRangePicker';
 
@@ -16,7 +15,6 @@ const SandwichFilter = ({
   currentPage = 1,
   pageSize = 25,
   onPageChange,
-  onPageSizeChange,
   className = ''
 }) => {
   
@@ -49,15 +47,15 @@ const SandwichFilter = ({
   }, [onClear]);
 
 
-  const handlePageChange = useCallback((page, pageSize) => {
+  const handlePageChange = useCallback((page) => {
     onPageChange(page, pageSize);
+  }, [onPageChange, pageSize]);
+
+
+  const handlePageSizeChange = useCallback((current, size) => {
+    onPageChange(1, size);
   }, [onPageChange]);
-
-
-  const handlePageSizeChange = useCallback((_, size) => {
-    onPageSizeChange(size);
-  }, [onPageSizeChange]);
-
+  
   return (
     <div className={`bg-white rounded-xl p-6 border border-gray-200 ${className}`}>
       <div className="mb-4">
