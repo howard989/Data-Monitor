@@ -12,6 +12,7 @@ import { useTimezone } from '../context/TimezoneContext';
 import { formatBlockTime } from '../utils/timeFormatter';
 import TimezoneSelector from './TimezoneSelector';
 import SandwichChart from './SandwichChart';
+import SandwichFilter from './SandwichFilter';
 import useBnbUsdPrice from '../hooks/useBnbUsdPrice';
 import { Select, Input, Tooltip } from 'antd';
 import DateRangePicker from './common/DateRangePicker';
@@ -26,13 +27,6 @@ const TOKEN_INFO = {
   '0xe9e7cea3dedca5984780bafc599bd69add087d56': { symbol: 'BUSD', decimals: 18, isStable: true },
   '0x8d0d000ee44948fc98c9b98a4fa4921476f08b0d': { symbol: 'USD1', decimals: 18, isStable: true }
 };
-
-const bundleOptions = [
-  { value: '', label: 'All' },
-  { value: 'true', label: 'Bundle only' },
-  { value: 'false', label: 'Non-bundle only' },
-];
-
 
 const getTokenSymbol = (address) => {
   if (!address) return '-';
@@ -52,7 +46,23 @@ const SandwichStats = () => {
   const navigate = useNavigate();
   const { timezone } = useTimezone();
   const { bnbUsdt } = useBnbUsdPrice(600000);
+  
+ 
+  const compactRangeLabel = (start, end) => {
+    if (!start || !end) return '';
+    const sMs = Date.parse(`${start}T00:00:00Z`);
+    const eMs = Date.parse(`${end}T00:00:00Z`);
+  
+    const fmt = (ms, opts) => new Intl.DateTimeFormat(undefined, { ...opts, timeZone: 'UTC' }).format(ms);
 
+    if (start === end) {
+      return fmt(sMs, { year:'numeric', month:'short', day:'numeric' }); 
+    }
+    if (start.slice(0,7) === end.slice(0,7)) {
+      return `${fmt(sMs, { month:'short', day:'numeric' })}–${fmt(eMs, { day:'numeric', year:'numeric' })}`;
+    }
+    return `${fmt(sMs, { year:'numeric', month:'short', day:'numeric' })} – ${fmt(eMs, { year:'numeric', month:'short', day:'numeric' })}`;
+  };
 
   const { isPaused, toggle } = usePause();
   const { executePausableRequest } = usePausableRequest();
@@ -113,6 +123,7 @@ const SandwichStats = () => {
   const [searchLimit, setSearchLimit] = useState(25);   // Default page size when no router specified
   const [searchTotal, setSearchTotal] = useState(0);
   const [searchTotalPages, setSearchTotalPages] = useState(0);
+  const [searchFilters, setSearchFilters] = useState(null);
 
 
   const [builderSort, setBuilderSort] = useState({ key: 'mined_rate', dir: 'desc' });
@@ -400,6 +411,74 @@ const SandwichStats = () => {
   };
 
 
+  const doSearch = useCallback(async (page = 1, filters = searchFilters) => {
+    if (!filters) return;
+    
+    setSearchLoading(true);
+    try {
+      const isRouterFilled = !!(filters.victimTo && filters.victimTo.trim());
+      const limitToUse = isRouterFilled ? 50 : searchLimit;
+
+      const params = { page, limit: limitToUse, sortBy: filters.sortBy || 'time' };
+      if (filters.victimTo) params.victim_to = filters.victimTo.trim().toLowerCase();
+      if (filters.bundle) {
+        params.is_bundle = filters.bundle === 'true';
+      }
+      if (filters.dateRange?.start && filters.dateRange?.end) {
+        params.startDate = filters.dateRange.start;
+        params.endDate = filters.dateRange.end;
+      }
+      if (filters.builder && filters.builder !== 'all') {
+        params.builder = filters.builder;
+      }
+      if ((filters.sortBy === 'profit' || filters.sortBy === 'profit_asc') && bnbUsdt) {
+        params.bnbUsd = bnbUsdt;
+      }
+
+      const res = await fetchSandwichSearch(params);
+      
+      if (res.success === false) {
+        console.error('Search returned error:', res.error);
+        setSearchResults([]);
+        setSearchTotal(0);
+        setSearchTotalPages(0);
+        if (res.error) {
+          alert(res.error);
+        }
+      } else {
+        setSearchResults(res.data || []);
+        setSearchTotal(res.total || 0);
+        setSearchTotalPages(res.totalPages || 0);
+        setSearchPage(page);
+        setSearchLimit(limitToUse);
+      }
+    } finally {
+      setSearchLoading(false);
+    }
+  }, [searchFilters, searchLimit, bnbUsdt]);
+
+
+  const handleFilterSearch = useCallback(async (filters) => {
+    if (!filters) {
+      clearSearch();
+      setSearchFilters(null);
+      return;
+    }
+
+    setHasSearched(true);
+    setSearchFilters(filters);
+    await doSearch(1, filters);
+  }, [doSearch]);
+
+  const handleFilterPageChange = useCallback((page, pageSize) => {
+    setSearchPage(page);
+    if (pageSize !== searchLimit) {
+      setSearchLimit(pageSize);
+    }
+    doSearch(page);
+  }, [searchLimit, doSearch]);
+
+
 
 
   useEffect(() => {
@@ -473,11 +552,11 @@ const SandwichStats = () => {
   const [hasSearched, setHasSearched] = useState(false);
 
 
-  useEffect(() => {
-    if (hasSearched && !isPaused) {
-      runSearch(1);
-    }
-  }, [filterSortBy, searchDateRange.start, searchDateRange.end, isPaused]);
+  // useEffect(() => {
+  //   if (hasSearched && !isPaused) {
+  //     runSearch(1);
+  //   }
+  // }, [filterSortBy, searchDateRange.start, searchDateRange.end, isPaused]);
 
   const formatNumber = (num) => {
     return new Intl.NumberFormat('en-US').format(num);
@@ -667,7 +746,18 @@ const SandwichStats = () => {
 
         <div className="bg-[#FFFBEC] rounded-2xl p-6 md:p-8 mb-8">
           <div className="text-center">
-            <h2 className={`${isMobile ? 'text-xl' : 'text-2xl'} font-semibold mb-4 text-[#F3BA2F]`}>Sandwich Attack Rate</h2>
+            <h2 className={`${isMobile ? 'text-xl' : 'text-2xl'} font-semibold mb-4 text-[#F3BA2F]`}>
+              Sandwich Attack Rate
+              {stats?.month_info?.monthName ? (
+                <span className="block text-sm font-normal text-gray-600 mt-1">
+                  ({stats.month_info.monthName})
+                </span>
+              ) : (dateRange.start && dateRange.end ? (
+                <span className="block text-sm font-normal text-gray-600 mt-1">
+                  ({compactRangeLabel(dateRange.start, dateRange.end)})
+                </span>
+              ) : null)}
+            </h2>
             {statsLoading ? (
               <div className="animate-pulse">
                 <div className="h-12 bg-amber-100 rounded w-32 mx-auto mb-2"></div>
@@ -900,6 +990,45 @@ const SandwichStats = () => {
               />
             </div>
 
+            <div className={`flex gap-2 ${isMobile ? 'w-full' : ''}`}>
+              <button
+                onClick={() => {
+                  const now = new Date();
+                  const year = now.getUTCFullYear();
+                  const month = now.getUTCMonth();
+                  const monthStart = new Date(Date.UTC(year, month, 1));
+                  const nextMonthFirst = new Date(Date.UTC(year, month + 1, 1));
+                  const monthEnd = new Date(nextMonthFirst.getTime() - 24*60*60*1000);
+                  setDateRange({
+                    start: monthStart.toISOString().split('T')[0],
+                    end: monthEnd.toISOString().split('T')[0]
+                  });
+                }}
+                className="px-3 py-1 text-sm bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors"
+                disabled={statsLoading || isPaused}
+              >
+                This Month
+              </button>
+              <button
+                onClick={() => {
+                  const now = new Date();
+                  const year = now.getUTCFullYear();
+                  const month = now.getUTCMonth();
+                  const lastMonthStart = new Date(Date.UTC(year, month - 1, 1));
+                  const thisMonthFirst = new Date(Date.UTC(year, month, 1));
+                  const lastMonthEnd = new Date(thisMonthFirst.getTime() - 24*60*60*1000);
+                  setDateRange({
+                    start: lastMonthStart.toISOString().split('T')[0],
+                    end: lastMonthEnd.toISOString().split('T')[0]
+                  });
+                }}
+                className="px-3 py-1 text-sm bg-gray-50 text-gray-600 rounded hover:bg-gray-100 transition-colors"
+                disabled={statsLoading || isPaused}
+              >
+                Last Month
+              </button>
+            </div>
+
             <button
               onClick={() => {
                 fetchStats(dateRange.start, dateRange.end);
@@ -1056,114 +1185,38 @@ const SandwichStats = () => {
             frontrunRouter={frontrunRouter}
             loading={statsLoading && !isPaused}
             refreshKey={lastUpdate ? lastUpdate.getTime() : 0}
-            snapshotBlock={stats?.latest_block}
+            snapshotBlock={stats?.latest_block || null}
             allBuilders={builders}
           />
         </div>
 
 
-        <div className="bg-white border border-gray-200 rounded-xl p-4 md:p-6 mb-8">
-          <h2 className="relative pl-3 text-base font-semibold text-gray-900 mb-4 leading-6">
-            <span
-              aria-hidden="true"
-              className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 bg-yellow-400"
-            ></span>
-            Filter Sandwiches
-          </h2>
-          <div className={`grid grid-cols-1 md:grid-cols-4 ${isMobile ? 'gap-2' : 'gap-3'}`}>
-            <div>
-              <label className="text-gray-600 text-sm">Victim Router (tx.to)</label>
-              <Input
-                value={filterVictimTo}
-                onChange={(e) => setFilterVictimTo(e.target.value)}
-                placeholder="0x..."
-                className="w-full"
-              />
-            </div>
+        <SandwichFilter
+          builders={sortedBuilders.map(b => b.builder_name).filter(Boolean)}
+          onSearch={handleFilterSearch}
+          onClear={() => handleFilterSearch(null)}
+          loading={searchLoading}
+          isMobile={isMobile}
+          results={searchResults}
+          totalResults={searchTotal}
+          currentPage={searchPage}
+          pageSize={searchLimit}
+          onPageChange={handleFilterPageChange}
+          onPageSizeChange={(size) => {
+            setSearchLimit(size);
+            setSearchPage(1);
+            doSearch(1);
+          }}
+          className="mb-8"
+        />
 
-            <div>
-              <label className="text-gray-600 text-sm">Bundle</label>
-              <Select
-                value={filterIsBundle}
-                onChange={(value) => setFilterIsBundle(value)}
-                className="w-full text-sm custom-select"
-                popupClassName="custom-dropdown"
-                popupMatchSelectWidth={false}
-              >
-                {bundleOptions.map(({ value, label }) => (
-                  <Option key={value} value={value}>
-                    {label}
-                  </Option>
-                ))}
-              </Select>
-            </div>
-
-            <div>
-              <label className="text-gray-600 text-sm">Sort By</label>
-              <Select
-                value={filterSortBy}
-                onChange={(value) => setFilterSortBy(value)}
-                className="w-full text-sm custom-select"
-                popupClassName="custom-dropdown"
-                popupMatchSelectWidth={false}
-              >
-                <Option value="time">Newest First</Option>
-                <Option value="profit">Highest Victim Loss First</Option>
-              </Select>
-            </div>
-
-            <div className={`flex ${isMobile ? 'flex-col' : 'items-end'} gap-2`}>
-              <button
-                onClick={() => {
-                  setSearchPage(1);
-                  runSearch(1);
-                }}
-                disabled={searchLoading || isPaused}
-                className={
-                  searchLoading || isPaused
-                    ? (isMobile
-                      ? 'w-full px-4 py-2 rounded bg-gray-200 text-gray-400 cursor-not-allowed'
-                      : 'flex-2 px-4 py-1 rounded bg-gray-200 text-gray-400 cursor-not-allowed')
-                    : (isMobile
-                      ? 'w-full px-4 py-2 rounded bg-[#FFC801] text-[#1E1E1E] hover:bg-[#FFD829] transition-all'
-                      : 'flex-2 px-4 py-1 rounded bg-[#FFC801] text-[#1E1E1E] hover:bg-[#FFD829] transition-all')
-                }
-              >
-                {searchLoading ? 'Searching...' : 'Search'}
-              </button>
-              <button
-                onClick={clearSearch}
-                className={
-                  isMobile
-                    ? 'w-full px-4 py-2 rounded border border-gray-300 text-gray-600 hover:bg-gray-50 transition-all'
-                    : 'flex-2 px-4 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-50 transition-all'
-                }
-              >
-                Clear
-              </button>
-            </div>
+        {hasSearched && searchResults.length === 0 && !searchLoading && (
+          <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded text-center text-gray-600">
+            No results found for the search criteria. Try adjusting your filters.
           </div>
-
-          <div className={`flex ${isMobile ? 'flex-col' : 'items-center'} gap-3 mt-3`}>
-            <label className="text-gray-600 text-sm">Date Range:</label>
-            <div className={`${isMobile ? 'w-full' : ''}`}>
-              <DateRangePicker
-                value={searchDateRange}
-                onChange={(v) => setSearchDateRange(v)}
-                style={{ minWidth: isMobile ? 0 : 260, width: isMobile ? '100%' : undefined }}
-                inputReadOnly
-                size="middle"
-              />
-            </div>
-          </div>
-
-          {hasSearched && searchResults.length === 0 && !searchLoading && (
-            <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded text-center text-gray-600">
-              No results found for the search criteria. Try adjusting your filters.
-            </div>
-          )}
-          
-          {searchResults.length > 0 && (
+        )}
+        
+        {searchResults.length > 0 && (
             <div className="mt-4 mx-auto max-w-[1140px] overflow-x-auto">
               <table className="w-full min-w-[900px]">
                 <thead>
@@ -1290,7 +1343,7 @@ const SandwichStats = () => {
                 <span className="text-sm text-gray-600">
                   Page {searchPage} of {Math.max(1, searchTotalPages)} • {searchTotal.toLocaleString()} results
                 </span>
-                {!filterVictimTo?.trim() && (
+                {!searchFilters?.victimTo?.trim() && (
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-gray-500">Rows/page:</span>
                     <Select
@@ -1299,7 +1352,7 @@ const SandwichStats = () => {
                       onChange={(v) => {
                         setSearchLimit(v);
                         setSearchPage(1);
-                        runSearch(1);
+                        doSearch(1);
                       }}
                       disabled={searchLoading}
                       options={[
@@ -1336,7 +1389,7 @@ const SandwichStats = () => {
 
               <div className={`flex ${isMobile ? 'flex-col' : 'flex-row'} gap-2`}>
                 <button
-                  onClick={() => runSearch(searchPage - 1)}
+            onClick={() => doSearch(searchPage - 1)}
                   disabled={searchPage <= 1 || searchLoading}
                   className={`px-4 py-2 rounded font-medium transition-all ${
                     searchPage <= 1 || searchLoading
@@ -1347,7 +1400,7 @@ const SandwichStats = () => {
                   Previous
                 </button>
                 <button
-                  onClick={() => runSearch(searchPage + 1)}
+            onClick={() => doSearch(searchPage + 1)}
                   disabled={searchPage >= searchTotalPages || searchLoading}
                   className={`px-4 py-2 rounded font-medium transition-all ${
                     searchPage >= searchTotalPages || searchLoading
@@ -1991,7 +2044,6 @@ const SandwichStats = () => {
           </div>
         )}
       </div>
-    </div>
   );
 };
 

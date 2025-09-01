@@ -57,8 +57,8 @@ class QueryCache {
 }
 
 
-const statsCache = new QueryCache(30); 
-const chartCache = new QueryCache(30); 
+const statsCache = new QueryCache(120); 
+const chartCache = new QueryCache(120);  
 
 module.exports = {
   QueryCache,

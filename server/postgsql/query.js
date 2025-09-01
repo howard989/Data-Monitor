@@ -24,6 +24,71 @@ const publicRouters = [
   '0xb300000b72deaeb607a12d5f54773d1c19c7028d'
 ];
 
+
+async function getLatestMonthRangeFromDB() {
+  const { rows } = await pool.query(`SELECT MAX(block_time) AS latest FROM ${TBL_OVERVIEW}`);
+  const latest = rows[0]?.latest ? new Date(rows[0].latest) : new Date();
+
+  const y = latest.getUTCFullYear();
+  const m = latest.getUTCMonth();
+  const monthStart = new Date(Date.UTC(y, m, 1));
+  const nextMonthFirst = new Date(Date.UTC(y, m + 1, 1));
+  const monthLastMoment = new Date(nextMonthFirst.getTime() - 1);
+
+
+  const endPoint = latest < monthLastMoment ? latest : monthLastMoment;
+
+  const s = monthStart.toISOString().split('T')[0];
+  const e = endPoint.toISOString().split('T')[0];
+
+  return {
+    startDate: s,
+    endDate: e,
+    startDateTime: `${s}T00:00:00Z`,
+    endDateTime: `${e}T23:59:59Z`,
+    monthName: monthStart.toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+  };
+}
+
+function getCurrentMonthRangeUTC(now = new Date()) {
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth();
+  const monthStart = new Date(Date.UTC(year, month, 1));
+  const nextMonthFirst = new Date(Date.UTC(year, month + 1, 1));
+  const monthLastMoment = new Date(nextMonthFirst.getTime() - 1);
+  const actualEnd = now < monthLastMoment ? now : monthLastMoment;
+
+  const startISO = monthStart.toISOString().split('T')[0];
+  const endISO = actualEnd.toISOString().split('T')[0];
+
+  return {
+    startDate: startISO,
+    endDate: endISO,
+    startDateTime: `${startISO}T00:00:00Z`,
+    endDateTime: `${endISO}T23:59:59Z`,
+    monthName: monthStart.toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }),
+    isComplete: now >= monthLastMoment
+  };
+}
+
+
+function getMonthRangeUTC(year, month) {
+  const monthStart = new Date(Date.UTC(year, month, 1));
+  const nextMonthFirst = new Date(Date.UTC(year, month + 1, 1));
+  const monthLast = new Date(nextMonthFirst.getTime() - 1);
+
+  const startISO = monthStart.toISOString().split('T')[0];
+  const endISO = monthLast.toISOString().split('T')[0];
+
+  return {
+    startDate: startISO,
+    endDate: endISO,
+    startDateTime: `${startISO}T00:00:00Z`,
+    endDateTime: `${endISO}T23:59:59Z`,
+    days: monthLast.getUTCDate()
+  };
+}
+
 async function getBuilderList() {
   const sql = `
     SELECT DISTINCT builder_group AS builder_name
@@ -113,7 +178,7 @@ async function runBaseAndBreakdownNoFilter(params, dateFilterAB) {
         COUNT(*)::int AS sandwich_count
       FROM public.sandwich_attack sa
       JOIN ${TBL_OVERVIEW} bo ON bo.block_number = sa.block_number
-      WHERE bo.block_time >= $1::timestamp AND bo.block_time <= $2::timestamp
+      WHERE bo.block_time >= $1::timestamptz AND bo.block_time <= $2::timestamptz
         AND bo.builder_kind = 'builder' 
         AND bo.builder_group IS NOT NULL
       GROUP BY bo.builder_group, sa.profit_token
@@ -325,24 +390,25 @@ async function getSandwichStats(
 ) {
 
   const usingDefaultWindow = !startDate && !endDate;
+  let monthInfo = null;
+  
   if (usingDefaultWindow) {
-    const now = new Date();
-    endDate = now.toISOString().split('T')[0];
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    startDate = thirtyDaysAgo.toISOString().split('T')[0];
+    monthInfo = await getLatestMonthRangeFromDB();  // 使用DB最新数据的月份
+    startDate = monthInfo.startDate;
+    endDate = monthInfo.endDate;
   }
-  const endDateTime = endDate.includes('T') ? endDate : `${endDate}T23:59:59`;
-
+  
+  const startDateTime = usingDefaultWindow ? monthInfo.startDateTime : `${startDate}T00:00:00Z`;
+  const endDateTime = usingDefaultWindow ? monthInfo.endDateTime : `${endDate}T23:59:59Z`;
 
   const cacheKey = JSON.stringify({ builderName, startDate, endDate, bundleFilter, amountRange, frontrunRouter });
   const cached = statsCache.get(cacheKey);
   if (cached) return cached;
 
-
-  const params = [startDate, endDateTime];
+  const params = [startDateTime, endDateTime];
   let p = 3;
-  const dateFilterAB = ` AND block_time >= $1::timestamp AND block_time <= $2::timestamp`;
-  const dateFilterBO = ` AND bo.block_time >= $1::timestamp AND bo.block_time <= $2::timestamp`;
+  const dateFilterAB = ` AND block_time >= $1::timestamptz AND block_time <= $2::timestamptz`;
+  const dateFilterBO = ` AND bo.block_time >= $1::timestamptz AND bo.block_time <= $2::timestamptz`;
 
 
   if (builderName) {
@@ -400,6 +466,7 @@ async function getSandwichStats(
     sandwich_percentage: out.total_blocks ? Number((100 * out.sandwich_blocks / out.total_blocks).toFixed(6)) : 0,
     sandwich_percentage_on_builder: out.builder_blocks ? Number((100 * out.sandwich_builder_blocks / out.builder_blocks).toFixed(6)) : 0,
     date_range: { start: startDate, end: endDate },
+    month_info: monthInfo,  // Include month info when using default
     fast_path: false
   };
 
@@ -553,12 +620,16 @@ async function getBuilderSandwiches(builderName, page = 1, limit = 50, startDate
     };
   }
 
-  // Default to last 30 days if no date range provided
+ 
   if (!startDate && !endDate) {
     const now = new Date();
     endDate = now.toISOString().split('T')[0];
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    startDate = thirtyDaysAgo.toISOString().split('T')[0];
+    const startUtc = new Date(Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate() - 31
+    ));
+    startDate = startUtc.toISOString().split('T')[0];
   }
 
   let dateFilter = '';
@@ -566,10 +637,11 @@ async function getBuilderSandwiches(builderName, page = 1, limit = 50, startDate
   const dataParams = [builderName];
 
   if (startDate && endDate) {
-    const endDateTime = endDate.includes('T') ? endDate : `${endDate}T23:59:59`;
-    dateFilter = ' AND sa.block_time >= $2::timestamp AND sa.block_time <= $3::timestamp';
-    countParams.push(startDate, endDateTime);
-    dataParams.push(startDate, endDateTime);
+    const startDateTime = `${startDate}T00:00:00Z`;
+    const endDateTime = `${endDate}T23:59:59Z`;
+    dateFilter = ' AND sa.block_time >= $2::timestamptz AND sa.block_time <= $3::timestamptz';
+    countParams.push(startDateTime, endDateTime);
+    dataParams.push(startDateTime, endDateTime);
   }
 
   const countSql = `
@@ -670,13 +742,15 @@ async function getChartData(
 
 
   if (!startDate && !endDate) {
-    const now = new Date();
-    endDate = now.toISOString().split('T')[0];
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    startDate = thirtyDaysAgo.toISOString().split('T')[0];
+    // Use latest data month as default
+    const monthRange = await getLatestMonthRangeFromDB();
+    startDate = monthRange.startDate;
+    endDate = monthRange.endDate;
   }
 
-  const endDateTime = endDate.includes('T') ? endDate : `${endDate}T23:59:59`;
+  // Use timestamptz format with Z suffix
+  const startDateTime = `${startDate}T00:00:00Z`;
+  const endDateTime = `${endDate}T23:59:59Z`;
 
   const hasAmount = !!amountRange && ((amountRange.min ?? '') !== '' || (amountRange.max ?? '') !== '');
 
@@ -695,7 +769,7 @@ async function getChartData(
         builder_group AS builder_name,
         COUNT(*) as total_blocks
       FROM ${TBL_OVERVIEW}
-      WHERE block_time >= $1::timestamp AND block_time <= $2::timestamp
+      WHERE block_time >= $1::timestamptz AND block_time <= $2::timestamptz
         AND builder_kind = 'builder'
         AND builder_group IS NOT NULL
         ${snapshotBlock != null ? 'AND block_number <= $3' : ''}
@@ -703,13 +777,13 @@ async function getChartData(
       ORDER BY total_blocks DESC
       LIMIT 10;
     `;
-    const topParams = snapshotBlock != null ? [startDate, endDateTime, snapshotBlock] : [startDate, endDateTime];
+    const topParams = snapshotBlock != null ? [startDateTime, endDateTime, snapshotBlock] : [startDateTime, endDateTime];
     const { rows } = await pool.query(topBuildersSql, topParams);
     builderList = rows.map(r => r.builder_name);
   }
 
 
-  let params = [startDate, endDateTime];
+  let params = [startDateTime, endDateTime];
   let paramIndex = 3;
   let sandwichFilterWhere = '';
   let filterConditions = [];
@@ -763,7 +837,7 @@ async function getChartData(
           bo.builder_group AS builder_name,
           COUNT(DISTINCT bo.block_number) as total_blocks
         FROM ${TBL_OVERVIEW} bo
-        WHERE bo.block_time >= $1::timestamp AND bo.block_time <= $2::timestamp
+        WHERE bo.block_time >= $1::timestamptz AND bo.block_time <= $2::timestamptz
           AND bo.builder_kind = 'builder'
           AND bo.builder_group = ANY($${paramIndex}::text[])
           ${snapBoCond}
@@ -776,7 +850,7 @@ async function getChartData(
           date_trunc('${dateTrunc}', bo.block_time) AS time_bucket
         FROM public.sandwich_attack sa
         JOIN ${TBL_OVERVIEW} bo ON sa.block_number = bo.block_number
-        WHERE bo.block_time >= $1::timestamp AND bo.block_time <= $2::timestamp
+        WHERE bo.block_time >= $1::timestamptz AND bo.block_time <= $2::timestamptz
           AND bo.builder_kind = 'builder'
           AND bo.builder_group = ANY($${paramIndex}::text[])
           ${sandwichFilterWhere}
@@ -793,12 +867,12 @@ async function getChartData(
           SELECT DISTINCT sa.block_number
           FROM public.sandwich_attack sa
           JOIN ${TBL_OVERVIEW} bo2 ON sa.block_number = bo2.block_number  
-          WHERE bo2.block_time >= $1::timestamp AND bo2.block_time <= $2::timestamp
+          WHERE bo2.block_time >= $1::timestamptz AND bo2.block_time <= $2::timestamptz
             ${sandwichFilterWhere}
             ${snapBo2Cond}
             ${snapSaCond}
         ) fs ON bo.block_number = fs.block_number
-        WHERE bo.block_time >= $1::timestamp AND bo.block_time <= $2::timestamp
+        WHERE bo.block_time >= $1::timestamptz AND bo.block_time <= $2::timestamptz
           ${snapBoCond}
         GROUP BY 1
       )
@@ -834,7 +908,7 @@ async function getChartData(
           COUNT(*) as total_blocks,
           COUNT(*) FILTER (WHERE has_sandwich) as sandwich_blocks
         FROM ${TBL_OVERVIEW}
-        WHERE block_time >= $1::timestamp AND block_time <= $2::timestamp
+        WHERE block_time >= $1::timestamptz AND block_time <= $2::timestamptz
           AND builder_kind = 'builder'
           AND builder_group = ANY($${buildersIdx}::text[])
           ${snapOverviewCond}
@@ -846,7 +920,7 @@ async function getChartData(
           COUNT(*) as total_blocks,
           COUNT(*) FILTER (WHERE has_sandwich) as total_sandwich_blocks
         FROM ${TBL_OVERVIEW}
-        WHERE block_time >= $1::timestamp AND block_time <= $2::timestamp
+        WHERE block_time >= $1::timestamptz AND block_time <= $2::timestamptz
           ${snapOverviewCond}
         GROUP BY 1
       )
@@ -969,9 +1043,10 @@ async function searchSandwiches({ victim_to = null, is_bundle = null, profit_tok
     where += ` AND sa.profit_token = $${params.length}`;
   }
   if (startDate && endDate) {
-    const endDT = endDate.includes('T') ? endDate : `${endDate}T23:59:59`;
-    params.push(startDate, endDT);
-    where += ` AND sa.block_time BETWEEN $${params.length - 1}::timestamp AND $${params.length}::timestamp`;
+    const startDateTime = `${startDate}T00:00:00Z`;
+    const endDateTime = `${endDate}T23:59:59Z`;
+    params.push(startDateTime, endDateTime);
+    where += ` AND sa.block_time BETWEEN $${params.length - 1}::timestamptz AND $${params.length}::timestamptz`;
   }
   if (builder) {
     params.push(builder, builder);

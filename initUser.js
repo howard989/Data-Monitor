@@ -4,8 +4,23 @@ const bcrypt = require('bcryptjs');
 
 async function initUser() {
     await connectallClient1();
-    const username = 'admin';
-    const password = '';
+    // const username = 'admin';
+    // const username = 'binanceWallet';
+    // const password = 'K7@mP9zL#vN4';
+
+    // const username = '48club';
+    // const password = 'xT2$jQw9*RkM';
+
+    // const username = 'Ian';
+    // const password = '5nB#vL8&pZy2';
+
+    // const username = 'mars';
+    // const password = 'rF9$kW3@mXc7';
+
+    const username = 'bnbchain';
+    const password = '8tY*nP4#vZmQ';
+
+ 
 
     const userKey = `user:${username}`;
     const userExists = await allClient1.exists(userKey);

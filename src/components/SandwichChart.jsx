@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
-  LineChart, Line, AreaChart, Area, BarChart, Bar,
+  LineChart, Line, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, ComposedChart
+  ResponsiveContainer, ComposedChart, Bar
 } from 'recharts';
 import { fetchChartData } from '../data/apiSandwichStats';
 import { useTimezone } from '../context/TimezoneContext';
-import { formatBlockTime } from '../utils/timeFormatter';
 import { Select, Spin } from 'antd';
 
 const COLORS = [
@@ -40,7 +39,63 @@ const SandwichChart = ({ dateRange, bundleFilter, amountRange, frontrunRouter, l
   const [chartType, setChartType] = useState('line');
   const [availableBuilders, setAvailableBuilders] = useState([]);
   const [builderFilter, setBuilderFilter] = useState('all'); 
+
+  const [builderMode, setBuilderMode] = useState('all');
+  const [includedBuilders, setIncludedBuilders] = useState([]);
+  const [excludedBuilder, setExcludedBuilder] = useState(null);
   const { timezone } = useTimezone();
+  
+  const tickFormatter = React.useCallback((d) => {
+    const ms = new Date(d).getTime();
+    if (Number.isNaN(ms)) return '';
+    switch (interval) {
+      case 'hourly':
+        return new Intl.DateTimeFormat(undefined, {
+          timeZone: timezone, hour: '2-digit', minute: '2-digit', hour12: false
+        }).format(ms);
+      case 'daily':
+        return new Intl.DateTimeFormat(undefined, {
+          timeZone: timezone, month: 'short', day: 'numeric'
+        }).format(ms);
+      case 'weekly':
+        return new Intl.DateTimeFormat(undefined, {
+          timeZone: timezone, month: 'short', day: 'numeric'
+        }).format(ms);
+      case 'monthly':
+        return new Intl.DateTimeFormat(undefined, {
+          timeZone: timezone, year: 'numeric', month: 'short'
+        }).format(ms);
+      default:
+        return new Intl.DateTimeFormat(undefined, {
+          timeZone: timezone, month: 'short', day: 'numeric'
+        }).format(ms);
+    }
+  }, [interval, timezone]);
+
+  const tooltipLabelFormatter = React.useCallback((d) => {
+    const ms = new Date(d).getTime();
+    if (Number.isNaN(ms)) return '';
+    switch (interval) {
+      case 'hourly':
+        return new Intl.DateTimeFormat(undefined, {
+          timeZone: timezone, year:'numeric', month:'short', day:'numeric',
+          hour:'2-digit', minute:'2-digit', hour12:false
+        }).format(ms);
+      case 'daily':
+      case 'weekly':
+        return new Intl.DateTimeFormat(undefined, {
+          timeZone: timezone, year:'numeric', month:'short', day:'numeric'
+        }).format(ms);
+      case 'monthly':
+        return new Intl.DateTimeFormat(undefined, {
+          timeZone: timezone, year:'numeric', month:'long'
+        }).format(ms);
+      default:
+        return new Intl.DateTimeFormat(undefined, {
+          timeZone: timezone, year:'numeric', month:'short', day:'numeric'
+        }).format(ms);
+    }
+  }, [interval, timezone]);
   
   useEffect(() => {
     if (allBuilders && allBuilders.length > 0) {
@@ -58,29 +113,39 @@ const SandwichChart = ({ dateRange, bundleFilter, amountRange, frontrunRouter, l
 
  
   useEffect(() => {
-    if (builderFilter === 'all' && snapshotBlock == null) return;
+    if (builderMode !== 'include' && builderFilter === 'all' && snapshotBlock == null) return;
     if (parentLoading && snapshotBlock == null) return;
     
     loadChartData(false);
-  }, [dateRange.start, dateRange.end, interval, builderFilter, bundleFilter, amountRange, frontrunRouter, snapshotBlock, parentLoading]);
+  }, [dateRange.start, dateRange.end, interval, builderFilter, bundleFilter, amountRange, frontrunRouter, snapshotBlock, parentLoading, builderMode, includedBuilders, excludedBuilder]);
 
 
   useEffect(() => {
     if (!refreshKey) return;
-    if (builderFilter === 'all' && snapshotBlock == null) return;
+    if (builderMode !== 'include' && builderFilter === 'all' && snapshotBlock == null) return;
     if (parentLoading && snapshotBlock == null) return;
     
     loadChartData(true);
-  }, [refreshKey, builderFilter, snapshotBlock, parentLoading]);
+  }, [refreshKey, builderFilter, snapshotBlock, parentLoading, builderMode]);
 
   const loadChartData = async (silent = false) => {
-    if ((builderFilter === 'all' && snapshotBlock == null) || (parentLoading && snapshotBlock == null)) {
+    if (builderMode !== 'include' && builderFilter === 'all' && snapshotBlock == null) {
+      return;
+    }
+    if (parentLoading && snapshotBlock == null) {
       return;
     }
     
     if (!silent) setLoading(true);
     try {
-      const buildersToFetch = builderFilter !== 'all' ? [builderFilter] : null;
+      let buildersToFetch = null;
+      if (builderMode === 'include') {
+        buildersToFetch = includedBuilders.length ? includedBuilders : null;
+      } else if (builderMode === 'all') {
+        buildersToFetch = builderFilter !== 'all' ? [builderFilter] : null;
+      } else if (builderMode === 'exclude') {
+        buildersToFetch = null; 
+      }
       
       const data = await fetchChartData(
         interval,
@@ -93,25 +158,18 @@ const SandwichChart = ({ dateRange, bundleFilter, amountRange, frontrunRouter, l
         snapshotBlock
       );
 
-      if (data.series) {
-        data.series = data.series.map(item => ({
-          ...item,
-          displayDate: formatBlockTime(
-            new Date(item.date).getTime(),
-            timezone,
-            interval === 'hourly' ? 'short' : 'date'
-          )
-        }));
-      }
-
+ 
       setChartData(data);
 
-      if (builderFilter === 'all' && data.summary?.builders) {
-        const topBuilders = data.summary.builders;
-      
-        const mergedSet = new Set([...topBuilders, ...allBuilders].map(b => b.toLowerCase()));
-        const merged = Array.from(mergedSet).sort();
-        setAvailableBuilders(merged);
+      if (data.summary?.builders) {
+        const topBuilders = data.summary.builders || [];
+        const map = new Map();
+        [...topBuilders, ...allBuilders].forEach(b => {
+          if (!b) return;
+          const key = String(b).toLowerCase();
+          if (!map.has(key)) map.set(key, b);
+        });
+        setAvailableBuilders(Array.from(map.values()).sort());
       }
     } catch (error) {
       console.error('Failed to load chart data:', error);
@@ -143,6 +201,16 @@ const SandwichChart = ({ dateRange, bundleFilter, amountRange, frontrunRouter, l
   }
 
   const builders = chartData.summary?.builders || [];
+  
+
+  let shownBuilders = builders;
+  if (builderMode === 'include') {
+    shownBuilders = includedBuilders.length ? includedBuilders.filter(b => builders.includes(b)) : builders;
+  } else if (builderMode === 'exclude' && excludedBuilder) {
+    shownBuilders = builders.filter(b => b !== excludedBuilder);
+  } else if (builderMode === 'all' && builderFilter !== 'all') {
+    shownBuilders = [builderFilter].filter(b => builders.includes(b));
+  }
 
   return (
     <div className="bg-white rounded-xl p-6 border border-gray-200">
@@ -156,18 +224,59 @@ const SandwichChart = ({ dateRange, bundleFilter, amountRange, frontrunRouter, l
         </h2>
 
         <div className="w-full md:w-auto grid grid-cols-1 sm:grid-cols-2 md:flex md:flex-row gap-3">
-          {/* Builder Selector */}
+          {/* Builder Selector with Multi-select */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
             <span className="text-sm text-gray-600">Builder:</span>
             <Select
-              value={builderFilter}
-              onChange={(value) => setBuilderFilter(value)}
+              value={builderMode}
+              onChange={setBuilderMode}
               options={[
-                { value: 'all', label: 'All Top Builders' },
-                ...availableBuilders.map((b) => ({ value: b, label: b }))
+                { value: 'all', label: 'All' },
+                { value: 'include', label: 'Include only' },
+                { value: 'exclude', label: 'Exclude one' },
               ]}
-              style={{ width: isMobile ? '100%' : 180 }}
+              style={{ width: isMobile ? '100%' : 120 }}
+              size="small"
             />
+            {builderMode === 'include' ? (
+              <Select
+                mode="multiple"
+                allowClear
+                showSearch
+                value={includedBuilders}
+                onChange={setIncludedBuilders}
+                options={availableBuilders.map((b) => ({ value: b, label: b }))}
+                placeholder="Select builders"
+                style={{ minWidth: isMobile ? '100%' : 200, maxWidth: 300 }}
+                maxTagCount={2}
+                size="small"
+              />
+            ) : builderMode === 'exclude' ? (
+              <Select
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                value={excludedBuilder}
+                onChange={setExcludedBuilder}
+                options={availableBuilders.map((b) => ({ value: b, label: b }))}
+                placeholder="Exclude builder"
+                style={{ minWidth: isMobile ? '100%' : 180 }}
+                size="small"
+              />
+            ) : (
+              <Select
+                showSearch
+                optionFilterProp="label"
+                value={builderFilter}
+                onChange={setBuilderFilter}
+                options={[
+                  { value: 'all', label: 'All Top Builders' },
+                  ...availableBuilders.map((b) => ({ value: b, label: b }))
+                ]}
+                style={{ width: isMobile ? '100%' : 180 }}
+                size="small"
+              />
+            )}
           </div>
 
           {/* Interval Selector */}
@@ -227,11 +336,14 @@ const SandwichChart = ({ dateRange, bundleFilter, amountRange, frontrunRouter, l
           <LineChart data={chartData.series}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis
-              dataKey="displayDate"
+              dataKey="date"
               tick={{ fontSize: isMobile ? 10 : 12 }}
               angle={isMobile ? 0 : -45}
               textAnchor={isMobile ? 'middle' : 'end'}
               height={isMobile ? 40 : 80}
+              tickFormatter={tickFormatter}
+              minTickGap={isMobile ? 20 : 8}
+              interval="preserveStartEnd"
             />
             <YAxis
               label={{ value: 'Sandwich Rate (%)', angle: -90, position: 'insideLeft' }}
@@ -241,7 +353,7 @@ const SandwichChart = ({ dateRange, bundleFilter, amountRange, frontrunRouter, l
             />
             <Tooltip
               formatter={(value) => `${value}%`}
-              labelFormatter={(label) => `Time: ${label}`}
+              labelFormatter={tooltipLabelFormatter}
             />
             {!isMobile && <Legend />}
 
@@ -257,7 +369,7 @@ const SandwichChart = ({ dateRange, bundleFilter, amountRange, frontrunRouter, l
             />
 
             {/* Builder lines */}
-            {builders.map((builder, index) => (
+            {shownBuilders.map((builder, index) => (
               <Line
                 key={builder}
                 type="monotone"
@@ -273,11 +385,14 @@ const SandwichChart = ({ dateRange, bundleFilter, amountRange, frontrunRouter, l
           <AreaChart data={chartData.series}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis
-              dataKey="displayDate"
+              dataKey="date"
               tick={{ fontSize: isMobile ? 10 : 12 }}
               angle={isMobile ? 0 : -45}
               textAnchor={isMobile ? 'middle' : 'end'}
               height={isMobile ? 40 : 80}
+              tickFormatter={tickFormatter}
+              minTickGap={isMobile ? 20 : 8}
+              interval="preserveStartEnd"
             />
             <YAxis
               label={{ value: 'Sandwich Rate (%)', angle: -90, position: 'insideLeft' }}
@@ -287,11 +402,11 @@ const SandwichChart = ({ dateRange, bundleFilter, amountRange, frontrunRouter, l
             />
             <Tooltip
               formatter={(value) => `${value}%`}
-              labelFormatter={(label) => `Time: ${label}`}
+              labelFormatter={tooltipLabelFormatter}
             />
             {!isMobile && <Legend />}
 
-            {builders.map((builder, index) => (
+            {shownBuilders.map((builder, index) => (
               <Area
                 key={builder}
                 type="monotone"
@@ -308,11 +423,14 @@ const SandwichChart = ({ dateRange, bundleFilter, amountRange, frontrunRouter, l
           <ComposedChart data={chartData.series}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis
-              dataKey="displayDate"
+              dataKey="date"
               tick={{ fontSize: isMobile ? 10 : 12 }}
               angle={isMobile ? 0 : -45}
               textAnchor={isMobile ? 'middle' : 'end'}
               height={isMobile ? 40 : 80}
+              tickFormatter={tickFormatter}
+              minTickGap={isMobile ? 20 : 8}
+              interval="preserveStartEnd"
             />
             <YAxis
               yAxisId="left"
@@ -330,7 +448,7 @@ const SandwichChart = ({ dateRange, bundleFilter, amountRange, frontrunRouter, l
                 if (name === 'Total Blocks') return value.toLocaleString();
                 return `${value}%`;
               }}
-              labelFormatter={(label) => `Time: ${label}`}
+              labelFormatter={tooltipLabelFormatter}
             />
             {!isMobile && <Legend />}
 
@@ -355,7 +473,7 @@ const SandwichChart = ({ dateRange, bundleFilter, amountRange, frontrunRouter, l
               dot={false}
             />
 
-            {builders.slice(0, 3).map((builder, index) => (
+            {shownBuilders.slice(0, 3).map((builder, index) => (
               <Line
                 key={builder}
                 yAxisId="left"
@@ -375,7 +493,7 @@ const SandwichChart = ({ dateRange, bundleFilter, amountRange, frontrunRouter, l
       <div className="mt-6 border-t pt-4">
         <div className="text-sm text-gray-600 mb-2">Top Builders by Activity:</div>
         <div className="flex flex-wrap gap-2">
-          {builders.map((builder, index) => (
+          {shownBuilders.map((builder, index) => (
             <div
               key={builder}
               className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100"
