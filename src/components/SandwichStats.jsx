@@ -764,7 +764,7 @@ const SandwichStats = () => {
                 value={selectedBuilder}
                 onChange={(value) => setSelectedBuilder(value)}
                 options={[
-                  { value: '', label: 'All Builders (global)' },
+                  { value: '', label: 'All Builders' },
                   ...builders.map((b) => ({ value: b, label: b }))
                 ]}
                 className="w-full"
