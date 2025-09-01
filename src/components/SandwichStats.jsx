@@ -18,6 +18,7 @@ import useBnbUsdPrice from '../hooks/useBnbUsdPrice';
 import { Select, Input, Tooltip } from 'antd';
 import DateRangePicker from './common/DateRangePicker';
 import { EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons';
+import '../css/Watermark.css';
 
 const { Option } = Select;
 
@@ -614,7 +615,8 @@ const SandwichStats = () => {
   }, [stats?.breakdown_by_builder, builderSort]);
 
   return (
-    <div className={`min-h-screen ${isMobile ? 'p-4' : 'p-8 mx-auto max-w-[1140px]'}`}>
+    // <div className={`min-h-screen ${isMobile ? 'p-4' : 'p-8 mx-auto max-w-[1140px]'}`}>
+    <div className={`min-h-screen watermark-container ${isMobile ? 'p-4' : 'p-8 mx-auto max-w-[1140px]'}`}> {/* Watermark */}
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-4">
           <nav className="text-sm text-gray-600">

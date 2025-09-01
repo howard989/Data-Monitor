@@ -1,0 +1,50 @@
+.watermark-container {
+  position: relative;
+}
+
+.watermark-container::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 9999;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='200' viewBox='0 0 300 200'%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle' font-family='Arial, sans-serif' font-size='20' font-weight='600' fill='%23000000' opacity='0.03' transform='rotate(-30 150 100)'%3E48 Club® | Data Center%3C/text%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-position: 0 0;
+  background-size: 300px 200px;
+}
+
+
+.watermark-section {
+  position: relative;
+}
+
+.watermark-section::after {
+  content: '48 Club® | Data Center';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-30deg);
+  font-size: 60px;
+  font-weight: bold;
+  color: rgba(0, 0, 0, 0.02);
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 1;
+}
+
+
+.chart-watermark::before {
+  content: '48 Club®';
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.05);
+  pointer-events: none;
+  z-index: 1;
+}
