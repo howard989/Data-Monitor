@@ -240,16 +240,20 @@ const SandwichChart = ({ dateRange, bundleFilter, amountRange, frontrunRouter, l
             />
             {builderMode === 'include' ? (
               <Select
-                mode="multiple"
-                allowClear
-                showSearch
-                value={includedBuilders}
-                onChange={setIncludedBuilders}
-                options={availableBuilders.map((b) => ({ value: b, label: b }))}
-                placeholder="Select builders"
-                style={{ minWidth: isMobile ? '100%' : 200, maxWidth: 300 }}
-                maxTagCount={2}
-                size="small"
+              mode="multiple"
+              allowClear
+              showSearch
+              optionFilterProp="label"                  
+              filterOption={(input, option) =>         
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+              value={includedBuilders}
+              onChange={setIncludedBuilders}
+              options={availableBuilders.map((b) => ({ value: b, label: b }))}
+              placeholder="Select builders"
+              style={{ minWidth: isMobile ? '100%' : 200, maxWidth: 300 }}
+              maxTagCount={2}
+              size="small"
               />
             ) : builderMode === 'exclude' ? (
               <Select

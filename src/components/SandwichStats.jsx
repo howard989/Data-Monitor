@@ -1337,7 +1337,7 @@ const SandwichStats = () => {
             </div>
           )}
           
-          {searchResults.length > 0 && (
+          {/* {searchResults.length > 0 && (
             <div className={`flex ${isMobile ? 'flex-col gap-3' : 'justify-between items-center'} mt-4`}>
               <div className={`flex ${isMobile ? 'flex-col gap-2' : 'items-center gap-3'}`}>
                 <span className="text-sm text-gray-600">
@@ -1377,7 +1377,7 @@ const SandwichStats = () => {
                         if (e.key === 'Enter') {
                           const page = parseInt(e.target.value);
                           if (page >= 1 && page <= searchTotalPages) {
-                            runSearch(page);
+                            doSearch(page);
                           }
                         }
                       }}
@@ -1412,7 +1412,7 @@ const SandwichStats = () => {
                 </button>
               </div>
             </div>
-          )}
+          )} */}
         </div>
 
 
