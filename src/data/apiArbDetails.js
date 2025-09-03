@@ -1,8 +1,8 @@
 // src/data/apiArbDetails.js
 import axios from 'axios';
 
-const BASE = 'http://localhost:3001';
-// const BASE = 'http://15.204.163.45:8189'; 
+// const BASE = 'http://localhost:3001';
+const BASE = 'http://15.204.163.45:8192'; 
 
 const tokenHeader = () => ({
   Authorization: `Bearer ${localStorage.getItem('authToken') || ''}`,

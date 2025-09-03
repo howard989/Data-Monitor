@@ -55,13 +55,13 @@ const SandwichStats = () => {
     const sMs = Date.parse(`${start}T00:00:00Z`);
     const eMs = Date.parse(`${end}T00:00:00Z`);
   
-    const fmt = (ms, opts) => new Intl.DateTimeFormat(undefined, { ...opts, timeZone: 'UTC' }).format(ms);
+    const fmt = (ms, opts) => new Intl.DateTimeFormat('en-US', { ...opts, timeZone: 'UTC' }).format(ms);
 
     if (start === end) {
       return fmt(sMs, { year:'numeric', month:'short', day:'numeric' }); 
     }
     if (start.slice(0,7) === end.slice(0,7)) {
-      return `${fmt(sMs, { month:'short', day:'numeric' })}–${fmt(eMs, { day:'numeric', year:'numeric' })}`;
+      return `${fmt(sMs, { month:'short', day:'numeric' })}–${fmt(eMs, { month:'short', day:'numeric', year:'numeric' })}`;
     }
     return `${fmt(sMs, { year:'numeric', month:'short', day:'numeric' })} – ${fmt(eMs, { year:'numeric', month:'short', day:'numeric' })}`;
   };
@@ -202,7 +202,7 @@ const SandwichStats = () => {
     if (!silent) setStatsLoading(true);
 
     try {
-      let url = `${API_URL}/api/sandwich/stats`;
+      let url = `${API_URL}/sandwich/stats`;
       const params = new URLSearchParams();
 
       if (startDate && endDate) {
@@ -270,7 +270,7 @@ const SandwichStats = () => {
 
     try {
       await executePausableRequest(
-        async () => authFetch(`${API_URL}/api/sandwich/recent?limit=20`, { method: 'GET' }),
+        async () => authFetch(`${API_URL}/sandwich/recent?limit=20`, { method: 'GET' }),
         {
           onSuccess: async (blocksRes) => {
             if (!blocksRes.ok) {
