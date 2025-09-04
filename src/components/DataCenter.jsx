@@ -23,6 +23,14 @@ function DataCenter() {
         enabled: true,
         href: '/sandwich-stats',
       },
+      {
+        title: 'Block Production',
+        description: 'Builder Block Production & Market Share',
+        categoryKey: 'builder',
+        chains: ['BNB'],
+        enabled: true,
+        href: '/block-production',
+      },
     ],
     []
   );

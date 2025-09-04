@@ -1135,6 +1135,353 @@ async function searchSandwiches({ victim_to = null, is_bundle = null, profit_tok
   };
 }
 
+
+
+async function getBlockProductionStats(startDate = null, endDate = null) {
+  let monthInfo = null;
+  if (!startDate && !endDate) {
+    monthInfo = await getLatestMonthRangeFromDB();
+    startDate = monthInfo.startDate;
+    endDate = monthInfo.endDate;
+  }
+  const startDateTime = `${startDate}T00:00:00Z`;
+  const endDateTime   = `${endDate}T23:59:59Z`;
+
+  const baseSql = `
+    SELECT 
+      COUNT(*)::bigint AS total_blocks,
+      COUNT(*) FILTER (WHERE builder_address IS NOT NULL)::bigint AS builder_blocks,
+      MIN(block_number) AS earliest_block,
+      MAX(block_number) AS latest_block,
+      COUNT(DISTINCT builder_group) FILTER (
+        WHERE builder_kind='builder' AND builder_group IS NOT NULL
+      ) AS total_builders
+    FROM ${TBL_OVERVIEW}
+    WHERE block_time >= $1::timestamptz AND block_time <= $2::timestamptz
+  `;
+
+  const breakdownSql = `
+    SELECT
+      builder_group AS builder_name,
+      COUNT(*)::bigint AS blocks,
+      COUNT(DISTINCT validator_name) AS integrated_validators
+    FROM ${TBL_OVERVIEW}
+    WHERE block_time >= $1::timestamptz AND block_time <= $2::timestamptz
+      AND builder_kind='builder' 
+      AND builder_group IS NOT NULL
+    GROUP BY builder_group
+    ORDER BY blocks DESC
+    LIMIT 100
+  `;
+
+  const [baseRes, brkRes] = await Promise.all([
+    pool.query(baseSql, [startDateTime, endDateTime]),
+    pool.query(breakdownSql, [startDateTime, endDateTime])
+  ]);
+
+  const b = baseRes.rows?.[0] || {};
+  const total = Number(b.total_blocks || 0);
+
+  const breakdown = (brkRes.rows || []).map(r => ({
+    builder_name: r.builder_name,
+    blocks: Number(r.blocks || 0),
+    integrated_validators: Number(r.integrated_validators || 0),
+    market_share: total ? Number((100 * Number(r.blocks) / total).toFixed(2)) : 0
+  }));
+
+  return {
+    date_range: { start: startDate, end: endDate },
+    month_info: monthInfo,
+    total_blocks: Number(b.total_blocks || 0),
+    builder_blocks: Number(b.builder_blocks || 0),
+    total_builders: Number(b.total_builders || 0),
+    earliest_block: Number(b.earliest_block || 0),
+    latest_block: Number(b.latest_block || 0),
+    builder_block_rate: total ? Number((100 * Number(b.builder_blocks || 0) / total).toFixed(2)) : 0,
+    breakdown_by_builder: breakdown,
+
+    last_updated: new Date().toISOString()
+  };
+}
+
+
+function getLast13MonthsRange(now = new Date()) {
+  const y = now.getUTCFullYear();
+  const m = now.getUTCMonth();
+  const start = new Date(Date.UTC(y - 1, m, 1));
+  const end = now;
+  const s = start.toISOString().slice(0,10);
+  const e = end.toISOString().slice(0,10);
+  return { startDate: s, endDate: e };
+}
+
+async function getMevPctSeries(interval='daily', startDate=null, endDate=null, snapshotBlock=null) {
+  if (!startDate || !endDate) {
+    const r = getLast13MonthsRange();
+    startDate = startDate || r.startDate;
+    endDate = endDate || r.endDate;
+  }
+  const startDateTime = `${startDate}T00:00:00Z`;
+  const endDateTime = `${endDate}T23:59:59Z`;
+  
+  const trunc = interval === 'hourly' ? 'hour'
+              : interval === 'weekly' ? 'week' 
+              : interval === 'monthly' ? 'month'
+              : 'day';
+
+  const params = [startDateTime, endDateTime];
+  let snapCond = '', snapCond2 = '';
+  if (snapshotBlock != null) {
+    params.push(snapshotBlock);
+    snapCond = ` AND block_number <= $3`;
+    snapCond2 = ` AND bo.block_number <= $3`;
+  }
+
+  const sql = `
+    WITH total AS (
+      SELECT date_trunc('${trunc}', block_time) AS bucket, COUNT(*) AS total_blocks
+      FROM ${TBL_OVERVIEW}
+      WHERE block_time >= $1::timestamptz AND block_time <= $2::timestamptz
+      ${snapCond}
+      GROUP BY 1
+    ),
+    builders AS (
+      SELECT date_trunc('${trunc}', bo.block_time) AS bucket, COUNT(*) AS builder_blocks
+      FROM ${TBL_OVERVIEW} bo
+      WHERE bo.block_time >= $1::timestamptz AND bo.block_time <= $2::timestamptz
+        AND bo.builder_kind='builder' AND bo.builder_group IS NOT NULL
+      ${snapCond2}
+      GROUP BY 1
+    )
+    SELECT
+      to_char(t.bucket AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS date,
+      t.total_blocks,
+      COALESCE(b.builder_blocks,0) AS builder_blocks
+    FROM total t
+    LEFT JOIN builders b ON b.bucket=t.bucket
+    ORDER BY t.bucket;
+  `;
+
+  const { rows } = await pool.query(sql, params);
+
+  const series = rows.map(r => ({
+    date: r.date,
+    total_blocks: Number(r.total_blocks || 0),
+    builder_blocks: Number(r.builder_blocks || 0),
+    pct: (Number(r.total_blocks||0) > 0)
+      ? Number((100 * Number(r.builder_blocks||0) / Number(r.total_blocks||0)).toFixed(2))
+      : 0
+  }));
+
+  return {
+    interval,
+    dateRange: { start: startDate, end: endDate },
+    series
+  };
+}
+
+async function getBuilderStatsTable(
+  interval = 'daily',
+  startDate = null,
+  endDate = null,
+  page = 1,
+  limit = 50,
+  denom = 'total',
+  snapshotBlock = null
+) {
+  if (!startDate || !endDate) {
+    const r = getLast13MonthsRange();
+    startDate = startDate || r.startDate;
+    endDate = endDate || r.endDate;
+  }
+  const startDateTime = `${startDate}T00:00:00Z`;
+  const endDateTime = `${endDate}T23:59:59Z`;
+
+  const trunc = interval === 'hourly' ? 'hour' : 'day';
+  const params = [startDateTime, endDateTime];
+  let snapCond1 = '', snapCond2 = '';
+  if (snapshotBlock != null) {
+    params.push(snapshotBlock);
+    snapCond1 = ` AND bo.block_number <= $3`;
+    snapCond2 = ` AND block_number <= $3`;
+  }
+
+  const denomCond = (denom === 'builder')
+    ? ` AND builder_kind='builder' AND builder_group IS NOT NULL`
+    : ``;
+
+  const baseCTE = `
+    WITH filtered AS (
+      SELECT bo.block_time, bo.block_number, bo.builder_group, bo.validator_name
+      FROM ${TBL_OVERVIEW} bo
+      WHERE bo.block_time >= $1::timestamptz AND bo.block_time <= $2::timestamptz
+        AND bo.builder_kind='builder' AND bo.builder_group IS NOT NULL
+        ${snapCond1}
+    ),
+    per_builder AS (
+      SELECT
+        date_trunc('${trunc}', block_time) AS bucket,
+        builder_group AS builder_name,
+        COUNT(*) AS blocks,
+        COUNT(DISTINCT validator_name) AS validators
+      FROM filtered
+      GROUP BY 1,2
+    ),
+    denom_total AS (
+      SELECT
+        date_trunc('${trunc}', block_time) AS bucket,
+        COUNT(*) AS total_blocks
+      FROM ${TBL_OVERVIEW}
+      WHERE block_time >= $1::timestamptz AND block_time <= $2::timestamptz
+        ${denomCond}
+        ${snapCond2}
+      GROUP BY 1
+    )
+  `;
+
+  const countSql = `
+    ${baseCTE}
+    SELECT COUNT(*) AS total_rows
+    FROM per_builder pb;
+  `;
+
+  const off = (page - 1) * limit;
+  const dataSql = `
+    ${baseCTE}
+    SELECT
+      to_char(pb.bucket AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:00') AS block_date,
+      pb.builder_name AS brand,
+      pb.blocks,
+      pb.validators AS integrated_validators,
+      CASE WHEN dt.total_blocks > 0
+           THEN ROUND(100.0 * pb.blocks / dt.total_blocks, 2)
+           ELSE 0 END AS market_share
+    FROM per_builder pb
+    JOIN denom_total dt ON dt.bucket = pb.bucket
+    ORDER BY pb.bucket DESC, pb.blocks DESC
+    LIMIT ${limit} OFFSET ${off};
+  `;
+
+  const [cntRes, dataRes] = await Promise.all([
+    pool.query(countSql, params),
+    pool.query(dataSql, params)
+  ]);
+
+  return {
+    total: Number(cntRes.rows?.[0]?.total_rows || 0),
+    page, 
+    limit,
+    rows: dataRes.rows || [],
+    dateRange: { start: startDate, end: endDate }
+  };
+}
+
+async function getBuilderTrend(
+  interval = 'daily',
+  startDate = null,
+  endDate = null,
+  builders = null,
+  mode = 'counts',
+  snapshotBlock = null
+) {
+  if (!startDate || !endDate) {
+    const r = getLast13MonthsRange();
+    startDate = startDate || r.startDate;
+    endDate = endDate || r.endDate;
+  }
+  const startDateTime = `${startDate}T00:00:00Z`;
+  const endDateTime = `${endDate}T23:59:59Z`;
+
+  const trunc = interval === 'weekly' ? 'week'
+              : interval === 'monthly' ? 'month'
+              : 'day';
+
+  if (!builders) {
+    const topSql = `
+      SELECT builder_group AS builder_name, COUNT(*) c
+      FROM ${TBL_OVERVIEW}
+      WHERE block_time >= $1::timestamptz AND block_time <= $2::timestamptz
+        AND builder_kind='builder' AND builder_group IS NOT NULL
+      ${snapshotBlock != null ? 'AND block_number <= $3' : ''}
+      GROUP BY 1 ORDER BY c DESC LIMIT 10
+    `;
+    const p = snapshotBlock != null ? [startDateTime, endDateTime, snapshotBlock] : [startDateTime, endDateTime];
+    const { rows } = await pool.query(topSql, p);
+    builders = rows.map(r => r.builder_name);
+  }
+
+  const params = [startDateTime, endDateTime, builders];
+  let snap1 = '', snap2 = '';
+  if (snapshotBlock != null) {
+    params.push(snapshotBlock);
+    snap1 = ` AND bo.block_number <= $4`;
+    snap2 = ` AND block_number <= $4`;
+  }
+
+  const sql = `
+    WITH ts AS (
+      SELECT date_trunc('${trunc}', block_time) AS bucket, COUNT(*) AS total_blocks
+      FROM ${TBL_OVERVIEW}
+      WHERE block_time >= $1::timestamptz AND block_time <= $2::timestamptz
+      ${snap2}
+      GROUP BY 1
+    ),
+    bs AS (
+      SELECT
+        date_trunc('${trunc}', bo.block_time) AS bucket,
+        bo.builder_group AS builder_name,
+        COUNT(*) AS blocks
+      FROM ${TBL_OVERVIEW} bo
+      WHERE bo.block_time >= $1::timestamptz AND bo.block_time <= $2::timestamptz
+        AND bo.builder_kind='builder' AND bo.builder_group = ANY($3::text[])
+      ${snap1}
+      GROUP BY 1,2
+    )
+    SELECT
+      to_char(ts.bucket AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS date,
+      ts.total_blocks,
+      bs.builder_name,
+      COALESCE(bs.blocks,0) AS builder_blocks
+    FROM ts
+    LEFT JOIN bs ON bs.bucket = ts.bucket
+    ORDER BY ts.bucket, bs.builder_name;
+  `;
+
+  const { rows } = await pool.query(sql, params);
+
+  const map = new Map();
+  rows.forEach(r => {
+    if (!map.has(r.date)) {
+      map.set(r.date, { date: r.date, overall_total: Number(r.total_blocks || 0) });
+    }
+    const o = map.get(r.date);
+    o[`__${r.builder_name}__`] = Number(r.builder_blocks || 0);
+  });
+
+  const series = Array.from(map.values()).map(o => {
+    const total = Number(o.overall_total || 0);
+    builders.forEach(b => {
+      const val = Number(o[`__${b}__`] || 0);
+      o[b] = (mode === 'share')
+        ? (total ? Number((100 * val / total).toFixed(2)) : 0)
+        : val;
+      delete o[`__${b}__`];
+    });
+    return o;
+  });
+
+  return {
+    series,
+    summary: {
+      builders,
+      totalBlocks: series.reduce((s, it) => s + Number(it.overall_total || 0), 0),
+      mode
+    },
+    interval,
+    dateRange: { start: startDate, end: endDate }
+  };
+}
+
 module.exports = {
   getSandwichStats,
   getRecentBlocks,
@@ -1146,5 +1493,10 @@ module.exports = {
   getEarliestBlock,
   getBuilderSandwiches,
   searchSandwiches,
-  getChartData
+  getChartData,
+  getBlockProductionStats,
+  getBuilderStatsTable,
+  getBuilderTrend,
+  getLast13MonthsRange,
+  getMevPctSeries
 };

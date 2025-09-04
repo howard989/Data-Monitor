@@ -214,3 +214,59 @@ export const clearCache = async () => {
   
   return res.json();
 };
+
+
+export const fetchBlockProductionStats = async (startDate = null, endDate = null) => {
+  const params = new URLSearchParams();
+  if (startDate && endDate) {
+    params.append('startDate', startDate);
+    params.append('endDate', endDate);
+  }
+  const url = `${API_URL}/sandwich/production/stats${params.toString() ? `?${params.toString()}` : ''}`;
+  const res = await authFetch(url, { method: 'GET' });
+  if (!res.ok) throw new Error('Failed to fetch production stats');
+  return res.json();
+};
+
+
+
+export const fetchBuildersTable = async (interval = 'daily', opts = {}) => {
+  const qs = new URLSearchParams({ interval });
+  ['startDate', 'endDate', 'page', 'limit', 'denom', 'snapshotBlock'].forEach(k => {
+    if (opts[k] !== undefined && opts[k] !== null && opts[k] !== '') {
+      qs.append(k, String(opts[k]));
+    }
+  });
+  const res = await authFetch(`${API_URL}/sandwich/production/builders-table?${qs.toString()}`, { method: 'GET' });
+  if (!res.ok) throw new Error('Failed to fetch builders table');
+  return res.json();
+};
+
+export const fetchProductionTrend = async (interval = 'daily', opts = {}) => {
+  const qs = new URLSearchParams({ interval });
+  ['startDate', 'endDate', 'mode', 'snapshotBlock'].forEach(k => {
+    if (opts[k]) qs.append(k, String(opts[k]));
+  });
+  if (Array.isArray(opts.builders) && opts.builders.length) {
+    qs.append('builders', opts.builders.join(','));
+  }
+  const res = await authFetch(`${API_URL}/sandwich/production/trend?${qs.toString()}`, { method: 'GET' });
+  if (!res.ok) throw new Error('Failed to fetch production trend');
+  return res.json();
+};
+
+export const fetchRange13Months = async () => {
+  const res = await authFetch(`${API_URL}/sandwich/production/range-13mo`, { method: 'GET' });
+  if (!res.ok) throw new Error('Failed to fetch range preset');
+  return res.json();
+};
+
+export const fetchProductionPct = async (interval = 'daily', opts = {}) => {
+  const qs = new URLSearchParams({ interval });
+  ['startDate', 'endDate', 'snapshotBlock'].forEach(k => {
+    if (opts[k]) qs.append(k, String(opts[k]));
+  });
+  const res = await authFetch(`${API_URL}/sandwich/production/pct?${qs.toString()}`, { method: 'GET' });
+  if (!res.ok) throw new Error('Failed to fetch pct series');
+  return res.json();
+};

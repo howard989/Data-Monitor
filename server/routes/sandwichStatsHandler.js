@@ -12,6 +12,11 @@ const {
   getBuilderSandwiches,
   searchSandwiches,
   getChartData,
+  getBlockProductionStats,
+  getBuilderStatsTable,
+  getBuilderTrend,
+  getLast13MonthsRange,
+  getMevPctSeries
 } = require('../postgsql/query');
 const { statsCache, chartCache } = require('../utils/queryCache');
 
@@ -237,6 +242,81 @@ router.post('/clear-cache', authMiddleware, async (req, res) => {
   } catch (e) {
     console.error('Error clearing cache:', e);
     res.status(500).json({ success: false, error: 'Failed to clear cache' });
+  }
+});
+
+
+router.get('/production/stats', authMiddleware, async (req, res) => {
+  try {
+    const startDate = req.query.startDate ? String(req.query.startDate) : null;
+    const endDate = req.query.endDate ? String(req.query.endDate) : null;
+
+    const data = await getBlockProductionStats(startDate, endDate);
+
+    if (!startDate && !endDate) {
+      res.set('Cache-Control', 'private, max-age=3600, stale-while-revalidate=86400'); // 1小时缓存，24小时陈旧重验证
+    }
+    res.json({ success: true, data });
+  } catch (e) {
+    console.error('Error in /production/stats:', e);
+    res.status(500).json({ success: false, error: 'Failed to fetch production stats' });
+  }
+});
+
+
+
+router.get('/production/builders-table', authMiddleware, async (req, res) => {
+  try {
+    const interval = (req.query.interval || 'daily').toLowerCase();
+    const startDate = req.query.startDate || null;
+    const endDate = req.query.endDate || null;
+    const page = Math.max(1, parseInt(req.query.page || '1', 10));
+    const limit = Math.min(200, Math.max(10, parseInt(req.query.limit || '50', 10)));
+    const denom = (req.query.denom || 'total').toLowerCase();
+    const snap = req.query.snapshotBlock !== undefined ? Number(req.query.snapshotBlock) : null;
+
+    const data = await getBuilderStatsTable(interval, startDate, endDate, page, limit, denom, snap);
+    res.json({ success: true, ...data });
+  } catch (e) {
+    console.error('Error /production/builders-table:', e);
+    res.status(500).json({ success: false, error: 'Failed to fetch builders table' });
+  }
+});
+
+router.get('/production/trend', authMiddleware, async (req, res) => {
+  try {
+    const interval = (req.query.interval || 'daily').toLowerCase();
+    const startDate = req.query.startDate || null;
+    const endDate = req.query.endDate || null;
+    const builders = req.query.builders ? req.query.builders.split(',').filter(Boolean) : null;
+    const mode = (req.query.mode || 'counts').toLowerCase();
+    const snap = req.query.snapshotBlock !== undefined ? Number(req.query.snapshotBlock) : null;
+
+    const data = await getBuilderTrend(interval, startDate, endDate, builders, mode, snap);
+    res.json({ success: true, ...data });
+  } catch (e) {
+    console.error('Error /production/trend:', e);
+    res.status(500).json({ success: false, error: 'Failed to fetch trend data' });
+  }
+});
+
+router.get('/production/range-13mo', authMiddleware, async (_req, res) => {
+  const r = getLast13MonthsRange();
+  res.json({ success: true, data: r });
+});
+
+router.get('/production/pct', authMiddleware, async (req, res) => {
+  try {
+    const interval = (req.query.interval || 'daily').toLowerCase();
+    const startDate = req.query.startDate || null;
+    const endDate = req.query.endDate || null;
+    const snap = req.query.snapshotBlock !== undefined ? Number(req.query.snapshotBlock) : null;
+
+    const data = await getMevPctSeries(interval, startDate, endDate, snap);
+    res.json({ success: true, ...data });
+  } catch (e) {
+    console.error('Error /production/pct:', e);
+    res.status(500).json({ success: false, error: 'Failed to fetch pct series' });
   }
 });
 

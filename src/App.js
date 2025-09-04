@@ -9,6 +9,7 @@ import PrivateRoute from './components/PrivateRoute';
 import ArbDetails from './components/ArbDetails';
 import SandwichStats from './components/SandwichStats';
 import DataCenter from './components/DataCenter';
+import BlockProduction from './components/BlockProduction';
 import { TimezoneProvider } from './context/TimezoneContext';
 
 const antdTheme = {
@@ -53,6 +54,15 @@ function App() {
                                     element={
                                         <PrivateRoute>
                                             <SandwichStats />
+                                        </PrivateRoute>
+                                    }
+                                />
+
+                                <Route
+                                    path="/block-production"
+                                    element={
+                                        <PrivateRoute>
+                                            <BlockProduction />
                                         </PrivateRoute>
                                     }
                                 />
