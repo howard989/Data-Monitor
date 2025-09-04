@@ -46,7 +46,7 @@ const SandwichStats = () => {
 
   const { authToken, logout } = useContext(AuthContext);
   const navigate = useNavigate();
-  const { timezone } = useTimezone();
+  const { timezone, timezoneLabel } = useTimezone();
   const { bnbUsdt } = useBnbUsdPrice(600000);
   
  
@@ -55,7 +55,7 @@ const SandwichStats = () => {
     const sMs = Date.parse(`${start}T00:00:00Z`);
     const eMs = Date.parse(`${end}T00:00:00Z`);
   
-    const fmt = (ms, opts) => new Intl.DateTimeFormat('en-US', { ...opts, timeZone: 'UTC' }).format(ms);
+    const fmt = (ms, opts) => new Intl.DateTimeFormat('en-US', { ...opts, timeZone: timezone }).format(ms);
 
     if (start === end) {
       return fmt(sMs, { year:'numeric', month:'short', day:'numeric' }); 
@@ -692,7 +692,7 @@ const SandwichStats = () => {
                 </span>
               ) : (dateRange.start && dateRange.end ? (
                 <span className="block text-sm font-normal text-gray-600 mt-1">
-                  ({compactRangeLabel(dateRange.start, dateRange.end)})
+                  ({compactRangeLabel(dateRange.start, dateRange.end)} {timezoneLabel})
                 </span>
               ) : null)}
             </h2>

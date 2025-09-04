@@ -254,7 +254,7 @@ router.get('/production/stats', authMiddleware, async (req, res) => {
     const data = await getBlockProductionStats(startDate, endDate);
 
     if (!startDate && !endDate) {
-      res.set('Cache-Control', 'private, max-age=3600, stale-while-revalidate=86400'); // 1小时缓存，24小时陈旧重验证
+      res.set('Cache-Control', 'private, max-age=3600, stale-while-revalidate=86400'); 
     }
     res.json({ success: true, data });
   } catch (e) {
@@ -268,8 +268,8 @@ router.get('/production/stats', authMiddleware, async (req, res) => {
 router.get('/production/builders-table', authMiddleware, async (req, res) => {
   try {
     const interval = (req.query.interval || 'daily').toLowerCase();
-    const startDate = req.query.startDate || null;
-    const endDate = req.query.endDate || null;
+    const startDate = req.query.start || req.query.startDate || null;
+    const endDate = req.query.end || req.query.endDate || null;
     const page = Math.max(1, parseInt(req.query.page || '1', 10));
     const limit = Math.min(200, Math.max(10, parseInt(req.query.limit || '50', 10)));
     const denom = (req.query.denom || 'total').toLowerCase();

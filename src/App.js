@@ -59,7 +59,7 @@ function App() {
                                 />
 
                                 <Route
-                                    path="/block-production"
+                                    path="/block-stats"
                                     element={
                                         <PrivateRoute>
                                             <BlockProduction />

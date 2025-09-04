@@ -1294,8 +1294,11 @@ async function getBuilderStatsTable(
     startDate = startDate || r.startDate;
     endDate = endDate || r.endDate;
   }
-  const startDateTime = `${startDate}T00:00:00Z`;
-  const endDateTime = `${endDate}T23:59:59Z`;
+  
+
+  const hasTime = (str) => str && str.includes('T');
+  const startDateTime = hasTime(startDate) ? startDate : `${startDate}T00:00:00Z`;
+  const endDateTime = hasTime(endDate) ? endDate : `${endDate}T23:59:59Z`;
 
   const trunc = interval === 'hourly' ? 'hour' : 'day';
   const params = [startDateTime, endDateTime];

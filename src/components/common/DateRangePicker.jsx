@@ -1,6 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { DatePicker, Space } from 'antd';
 import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import tzPlugin from 'dayjs/plugin/timezone';
+import customParseFormat from 'dayjs/plugin/customParseFormat';
+
+dayjs.extend(utc);
+dayjs.extend(tzPlugin);
+dayjs.extend(customParseFormat);
 
 const { RangePicker } = DatePicker;
 
@@ -12,6 +19,7 @@ const DateRangePicker = ({
   format = 'YYYY-MM-DD',
   allowClear = true,
   disabledDate,
+  timezone,
   ...rest
 }) => {
 
@@ -24,25 +32,29 @@ const DateRangePicker = ({
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  const toDayjs = (str) => (str ? dayjs(str, format) : null);
+  const toDayjs = (str) => {
+    if (!str) return null;
+    return timezone ? dayjs.tz(str, format, timezone) : dayjs(str, format);
+  };
 
-  const startValue = useMemo(() => toDayjs(value.start), [value.start, format]);
-  const endValue = useMemo(() => toDayjs(value.end), [value.end, format]);
+  const startValue = useMemo(() => toDayjs(value.start), [value.start, format, timezone]);
+  const endValue = useMemo(() => toDayjs(value.end), [value.end, format, timezone]);
 
   const handleRangeChange = (dates) => {
     if (!dates || dates.length !== 2 || !dates[0] || !dates[1]) {
       onChange?.({ start: '', end: '' });
       return;
     }
+
     onChange?.({
-      start: dates[0].format(format),
-      end: dates[1].format(format),
+      start: timezone ? dates[0].tz(timezone).format(format) : dates[0].format(format),
+      end: timezone ? dates[1].tz(timezone).format(format) : dates[1].format(format),
     });
   };
 
   const handleStartChange = (date) => {
     onChange?.({
-      start: date ? date.format(format) : '',
+      start: date ? (timezone ? date.tz(timezone).format(format) : date.format(format)) : '',
       end: value.end || '',
     });
   };
@@ -50,17 +62,25 @@ const DateRangePicker = ({
   const handleEndChange = (date) => {
     onChange?.({
       start: value.start || '',
-      end: date ? date.format(format) : '',
+      end: date ? (timezone ? date.tz(timezone).format(format) : date.format(format)) : '',
     });
   };
 
   const defaultStartDisabledDate = (current) => {
     if (!endValue) return false;
+    const hasTimeSelection = rest.showTime;
+    if (hasTimeSelection) {
+      return false; 
+    }
     return current && current.isAfter(endValue, 'day');
   };
 
   const defaultEndDisabledDate = (current) => {
     if (!startValue) return false;
+    const hasTimeSelection = rest.showTime;
+    if (hasTimeSelection) {
+      return false; 
+    }
     return current && current.isBefore(startValue, 'day');
   };
 
@@ -68,7 +88,6 @@ const DateRangePicker = ({
   const endDisabledDate = disabledDate || defaultEndDisabledDate;
 
   if (!isMobile) {
-    // 桌面端
     return (
       <RangePicker
         value={[startValue, endValue]}
@@ -81,7 +100,7 @@ const DateRangePicker = ({
     );
   }
 
-  // 移动端
+
   return (
     <Space.Compact style={{ width: '100%' }}>
       <DatePicker

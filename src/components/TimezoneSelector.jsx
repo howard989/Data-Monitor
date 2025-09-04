@@ -8,7 +8,7 @@ const TimezoneSelector = () => {
 
   const timezoneOptions = Object.entries(TIMEZONES).map(([key, { label, value }]) => ({
     value: key,
-    label: `${label} ${getTimezoneOffset(value)}`,
+    label: label,
   }));
 
   return (

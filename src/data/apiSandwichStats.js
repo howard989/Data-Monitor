@@ -232,7 +232,7 @@ export const fetchBlockProductionStats = async (startDate = null, endDate = null
 
 export const fetchBuildersTable = async (interval = 'daily', opts = {}) => {
   const qs = new URLSearchParams({ interval });
-  ['startDate', 'endDate', 'page', 'limit', 'denom', 'snapshotBlock'].forEach(k => {
+  ['start', 'end', 'startDate', 'endDate', 'page', 'limit', 'denom', 'snapshotBlock'].forEach(k => {
     if (opts[k] !== undefined && opts[k] !== null && opts[k] !== '') {
       qs.append(k, String(opts[k]));
     }
