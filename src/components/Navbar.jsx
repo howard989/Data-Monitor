@@ -55,8 +55,8 @@ function Navbar() {
             
           </div>
 
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <span className="text-[24px] md:text-[26px] text-[#1E1E1E] font-bold tracking-wide">
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-[24px] md:text-[26px] text-[#1E1E1E] hover:text-[#FFC800] font-bold tracking-wide transition-colors cursor-pointer">
               Data Center
             </span>
           </div>
