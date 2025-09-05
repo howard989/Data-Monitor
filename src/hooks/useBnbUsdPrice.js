@@ -1,22 +1,14 @@
 import { useEffect, useState } from 'react';
 import Web3 from 'web3';
 import { PANCAKE_ROUTER, WBNB, USDT, ROUTER_ABI } from '../contracts/pancakeswap';
-import { usePause } from '../context/PauseContext';
+import { useOptionalPause } from '../context/PauseContext';
 
 export default function useBnbUsdPrice(pollMs = 3000) {
   const [bnbUsdt, setBnbUsdt] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [error, setError] = useState(null);
   
-
-  let pauseContext = null;
-  try {
-    pauseContext = usePause();
-  } catch (e) {
-  }
-  
-  const isPaused = pauseContext?.isPaused || false;
-  const isPausedRef = pauseContext?.isPausedRef || { current: false };
+  const { isPaused, isPausedRef } = useOptionalPause();
 
   useEffect(() => {
     const provider = 'https://bsc-dataseed.binance.org/';

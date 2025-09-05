@@ -1,8 +1,8 @@
 import { useCallback } from 'react';
-import { usePause } from '../context/PauseContext';
+import { useOptionalPause } from '../context/PauseContext';
 
 export const usePausableRequest = () => {
-  const { isPausedRef, onResume } = usePause();
+  const { isPausedRef, onResume } = useOptionalPause();
 
   const executePausableRequest = useCallback(async (requestFn, options = {}) => {
     const {

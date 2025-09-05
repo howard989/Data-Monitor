@@ -9,11 +9,6 @@ import customParseFormat from 'dayjs/plugin/customParseFormat';
 import { useTimezone } from '../context/TimezoneContext';
 import TimezoneSelector from './TimezoneSelector';
 import DateRangePicker from './common/DateRangePicker';
-
-dayjs.extend(utc);
-dayjs.extend(timezone);
-dayjs.extend(customParseFormat);
-
 import { 
   fetchBlockProductionStats, 
   fetchBuildersTable,  
@@ -24,6 +19,10 @@ import ProductionMarketShareChart from './production/ProductionMarketShareChart'
 import ProductionBuildersTrend from './production/ProductionBuildersTrend';
 import { formatBlockTime } from '../utils/timeFormatter';
 import '../css/Watermark.css';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+dayjs.extend(customParseFormat);
 
 const { Option } = Select;
 

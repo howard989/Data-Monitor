@@ -135,8 +135,8 @@ const SandwichStats = () => {
   const formatWei = (weiStr, decimals = 18, digits = 6) => {
     if (!weiStr) return '0';
     try {
-      const bi = BigInt(weiStr);
-      const base = BigInt(10) ** BigInt(decimals);
+      const bi = window.BigInt(weiStr);
+      const base = window.BigInt(10) ** window.BigInt(decimals);
       const int = bi / base;
       let frac = (bi % base).toString().padStart(decimals, '0').slice(0, digits);
       frac = frac.replace(/0+$/, '');

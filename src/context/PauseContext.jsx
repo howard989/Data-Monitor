@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 
-const PauseContext = createContext(null);
+export const PauseContext = createContext(null);
 
 export const PauseProvider = ({ children }) => {
   const [isPaused, setIsPaused] = useState(false);
@@ -51,4 +51,32 @@ export const usePause = () => {
   const ctx = useContext(PauseContext);
   if (!ctx) throw new Error('usePause must be used within PauseProvider');
   return ctx;
+};
+
+
+export const useOptionalPause = () => {
+  const ctx = useContext(PauseContext);
+  const fallbackRef = useRef(false);
+  
+  if (ctx) return ctx;
+  
+  const noop = () => {};
+  const passthrough = async (requestFn) => {
+    try {
+      const data = await requestFn();
+      return { data, cancelled: false };
+    } catch (error) {
+      return { error, cancelled: false };
+    }
+  };
+  
+  return {
+    isPaused: false,
+    isPausedRef: fallbackRef,
+    pause: noop,
+    resume: noop,
+    toggle: noop,
+    onResume: noop,
+    pauseAwareRequest: passthrough,
+  };
 };
