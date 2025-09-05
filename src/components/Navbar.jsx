@@ -1,7 +1,7 @@
 import React, { useContext, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
-import { Dropdown, Menu } from 'antd';
+import { Dropdown, Menu, Button } from 'antd';
 import { DownOutlined, RightOutlined } from '@ant-design/icons';
 
 function Navbar() {
@@ -64,13 +64,14 @@ function Navbar() {
           <div className="hidden md:flex items-center space-x-4">
             {user ? (
               <>
-                <a
+                <Button
                   href="https://web3.48.club"
-                  className="border border-[#FFC801] hover:bg-[#FFC801] hover:text-[#1E1E1E] text-[#1E1E1E] px-4 py-[6px] rounded text-sm transition-all inline-flex items-center"
+                  type="default"
+                  size="middle"
                 >
                   <span>48 Club</span>
                   <RightOutlined className="ml-1 text-xs" />
-                </a>
+                </Button>
 
                 <Dropdown
                   placement="bottomRight"
@@ -78,32 +79,33 @@ function Navbar() {
                   menu={{ items: userMenuItems, onClick: onUserMenuClick }}
                   overlayClassName="rounded-md"
                 >
-                  <button className="bg-[#FFC801] hover:brightness-95 text-[#1E1E1E] px-6 py-[6px] rounded text-sm transition-all shadow inline-flex items-center">
-                    <span>{user.username}</span>
-                  </button>
+                  <Button type="primary" size="middle">
+                    {user.username}
+                  </Button>
                 </Dropdown>
               </>
             ) : (
-              <NavLink 
-                to="/login" 
-                className="bg-[#FFC801] hover:brightness-95 text-[#1E1E1E] px-6 py-2 rounded text-sm transition-all shadow"
-              >
-                Login
+              <NavLink to="/login">
+                <Button type="primary" size="middle">
+                  Login
+                </Button>
               </NavLink>
             )}
           </div>
 
           <div className="md:hidden flex items-center">
-            <button 
+            <Button
+              type="text"
               onClick={() => setMenuOpen(!menuOpen)}
               aria-expanded={menuOpen}
               aria-controls="mobile-menu"
-              className="text-[#1E1E1E] hover:text-black p-2"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
+              icon={
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              }
+              size="middle"
+            />
           </div>
         </div>
       </div>
@@ -121,32 +123,33 @@ function Navbar() {
             {user ? (
               <div className="px-3">
                 <div className="text-[#4A4A4A] text-sm mb-3">Welcome, {user.username}</div>
-                <a
+                <Button
                   href="https://web3.48.club"
-                  className="w-full mb-2 inline-flex justify-center items-center text-center border-2 border-[#FFC801] hover:bg-[#FFC801] text-[#1E1E1E] px-4 py-2 rounded text-sm transition-all"
+                  block
+                  size="middle"
                 >
                   <span>48 Club</span>
                   <RightOutlined className="ml-1 text-xs" />
-                </a>
-                <button
+                </Button>
+                <Button
                   onClick={() => {
                     handleLogout();
                     setMenuOpen(false);
                   }}
-                  className="w-full bg-[#FFC801] hover:brightness-95 text-[#1E1E1E] px-4 py-2 rounded text-sm transition-all shadow"
+                  type="primary"
+                  block
+                  size="middle"
                 >
                   Logout
-                </button>
+                </Button>
               </div>
             ) : (
-              <NavLink
-                to="/login"
-                onClick={() => setMenuOpen(false)}
-                className="mx-3 block bg-[#FFC801] hover:brightness-95 text-[#1E1E1E] px-4 py-2 rounded text-sm text-center transition-all shadow"
-              >
-                Login
+              <NavLink to="/login" onClick={() => setMenuOpen(false)}>
+                <Button type="primary" block size="middle">
+                  Login
+                </Button>
               </NavLink>
-            )}
+              )}
           </div>
         </div>
       </div>

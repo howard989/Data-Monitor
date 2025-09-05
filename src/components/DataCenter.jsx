@@ -106,12 +106,11 @@ function DataCenter() {
                     {item.enabled ? (
                       <Button
                         type="primary"
-                        size="normal"
+                        size="middle"
                         href={item.href}
-                        className="text-[#1E1E1E] px-6 py-1 rounded text-sm transition-all"
-                        >
-                            View
-                    </Button>
+                      >
+                        View
+                      </Button>
                     ) : (
                       <span className="text-[11px] sm:text-xs text-gray-400 uppercase tracking-wider">
                         Coming Soon

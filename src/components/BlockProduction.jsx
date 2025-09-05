@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Select, Spin } from 'antd';
+import { Select, Spin, Button } from 'antd';
 import { PlayCircleOutlined, LoadingOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
@@ -190,9 +190,10 @@ function BlockProduction() {
       : tableUpdateTime;
     
     return (
-      <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 mb-6 relative">
+      <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 mb-6">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-base font-semibold text-gray-900">
+          <h3 className="relative pl-3 text-base font-semibold text-gray-900 leading-6">
+            <span aria-hidden className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 bg-yellow-400"></span>
             MEV Builders Stats — {title}
           </h3>
           <div className="flex items-center gap-2 text-sm">
@@ -265,7 +266,7 @@ function BlockProduction() {
               </Select>
             </div>
             <div className="flex items-center gap-2">
-              <button
+              <Button
                 onClick={() => {
                   if (tableData.page > 1) {
                     loadFunc(tableData.page - 1, tableData.limit);
@@ -274,13 +275,13 @@ function BlockProduction() {
                     }
                   }
                 }}
-                className="px-3 py-1 rounded bg-gray-100 hover:bg-gray-200 disabled:opacity-40 transition-colors"
                 disabled={tableData.page <= 1}
+                size="small"
               >
                 ‹ Prev
-              </button>
+              </Button>
               <span>Page {tableData.page} of {Math.ceil(tableData.total / tableData.limit) || 1}</span>
-              <button
+              <Button
                 onClick={() => {
                   if (tableData.page * tableData.limit < tableData.total) {
                     loadFunc(tableData.page + 1, tableData.limit);
@@ -289,18 +290,20 @@ function BlockProduction() {
                     }
                   }
                 }}
-                className="px-3 py-1 rounded bg-gray-100 hover:bg-gray-200 disabled:opacity-40 transition-colors"
                 disabled={tableData.page * tableData.limit >= tableData.total}
+                size="small"
               >
                 Next ›
-              </button>
+              </Button>
             </div>
           </div>
         </div>
         
         {updateTime && updateTime[isHourly ? 'hourly' : 'daily'] && (
-          <div className="absolute bottom-2 right-2 text-xs text-gray-400" 
-               title={`Last Updated: ${updateTime[isHourly ? 'hourly' : 'daily'].toLocaleString()}`}>
+          <div
+            className="mt-4 text-right text-xs text-gray-400"
+            title={`Last Updated: ${updateTime[isHourly ? 'hourly' : 'daily'].toLocaleString()}`}
+          >
             {getTimeAgo(updateTime[isHourly ? 'hourly' : 'daily'])}
           </div>
         )}
@@ -316,43 +319,29 @@ function BlockProduction() {
           <span className="mx-2">/</span>
           <span>Block Stats</span>
         </nav>
+        {dateRange.start && dateRange.end && (
+          <div className="text-sm text-gray-600">
+            Date Range: {compactRangeLabel(dateRange.start, dateRange.end)} ({timezoneLabel})
+          </div>
+        )}
       </div>
 
       <hr className="my-4 border-t border-gray-300" />
 
       <div className={`flex ${isMobile ? 'flex-col' : 'justify-between items-start'} gap-3 mb-6`}>
-        <div>
-          <h1 className={`${isMobile ? 'text-xl' : 'text-2xl md:text-3xl'} font-bold text-gray-800 mb-2`}>
-            MEV Builders Stats
-          </h1>
-          {dateRange.start && dateRange.end && (
-            <p className="text-sm text-gray-600 mt-2">
-              Date Range: {compactRangeLabel(dateRange.start, dateRange.end)} ({timezoneLabel})
-            </p>
-          )}
-        </div>
+        <h1 className={`${isMobile ? 'text-xl' : 'text-2xl md:text-3xl'} font-bold text-gray-800`}>
+          MEV Builders Stats
+        </h1>
         <div className={`flex ${isMobile ? 'w-full justify-between' : 'items-center'} gap-3`}>
-          <button
+          <Button
+            type="primary"
             onClick={loadAllData}
             disabled={loading}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
-              loading
-                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                : 'bg-[#FFC801] text-[#1E1E1E] hover:bg-[#FFD829] hover:shadow-md'
-            }`}
+            icon={loading ? <LoadingOutlined /> : <PlayCircleOutlined />}
+            size="middle"
           >
-            {loading ? (
-              <>
-                <LoadingOutlined className="text-lg" />
-                <span>Loading...</span>
-              </>
-            ) : (
-              <>
-                <PlayCircleOutlined className="text-lg" />
-                <span>RUN</span>
-              </>
-            )}
-          </button>
+            {loading ? 'Loading...' : 'RUN'}
+          </Button>
           <TimezoneSelector />
         </div>
       </div>
@@ -368,7 +357,7 @@ function BlockProduction() {
         </div>
 
         <div className="bg-white border border-gray-200 rounded-xl p-6 text-center">
-          <div className={`${isMobile ? 'text-3xl' : 'text-4xl'} font-bold text-gray-900 mb-2`}>
+          <div className={`${isMobile ? 'text-3xl' : 'text-4xl'} font-bold text-red-500 mb-2`}>
             {stats ? formatNumber(stats.total_builders) : '—'}
           </div>
           <div className="text-sm text-gray-600 font-medium">Total_Builders</div>
@@ -376,7 +365,7 @@ function BlockProduction() {
         </div>
 
         <div className="bg-white border border-gray-200 rounded-xl p-6 text-center">
-          <div className={`${isMobile ? 'text-3xl' : 'text-4xl'} font-bold text-gray-900 mb-2`}>
+          <div className={`${isMobile ? 'text-3xl' : 'text-4xl'} font-bold text-yellow-400 mb-2`}>
             {stats ? formatNumber(stats.builder_blocks) : '—'}
           </div>
           <div className="text-sm text-gray-600 font-medium">MEV_Blocks_24H</div>
@@ -428,7 +417,8 @@ function BlockProduction() {
             />
           </div>
           <div className="flex gap-2">
-            <button
+            <Button
+              type="primary"
               onClick={() => {
                 if (!tableTimeRange.start || !tableTimeRange.end) return;
                 const fmt = 'YYYY-MM-DD HH:mm';
@@ -498,15 +488,11 @@ function BlockProduction() {
                 }
               }}
               disabled={!tableTimeRange.start || !tableTimeRange.end}
-              className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                tableTimeRange.start && tableTimeRange.end
-                  ? 'bg-[#FFC801] text-[#1E1E1E] hover:bg-[#FFD829] hover:shadow-md'
-                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-              }`}
+              size="middle"
             >
               Apply
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => {
                 setTableTimeRange({ start: '', end: '' });
                 setTableTimeRangeUTC({ start: '', end: '' });
@@ -514,10 +500,10 @@ function BlockProduction() {
                 setCustomHourlyTable({ rows: [], total: 0, page: 1, limit: 25 });
                 setCustomTableUpdateTime({ daily: null, hourly: null });
               }}
-              className="px-3 py-2 text-sm bg-gray-50 text-gray-600 rounded hover:bg-gray-100"
+              size="middle"
             >
               Reset
-            </button>
+            </Button>
           </div>
         </div>
 

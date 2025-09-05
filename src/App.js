@@ -15,6 +15,7 @@ import { TimezoneProvider } from './context/TimezoneContext';
 const antdTheme = {
   token: {
     colorPrimary: '#FFC801',
+    colorTextLightSolid: '#1E1E1E',
     // colorSuccess: '#52c41a',
     // colorWarning: '#faad14',
     // colorError: '#ff4d4f',
@@ -22,14 +23,19 @@ const antdTheme = {
   },
   components: {
     Button: {
-      colorPrimaryHover: '#E6B600',
-      colorPrimaryActive: '#D4A800',
+      colorPrimary: '#FFC801',
+      colorPrimaryHover: '#FFD84D',
+      colorPrimaryActive: '#E6B800',
+      colorPrimaryBorder: '#FFC801',
     },
     Segmented: {
       itemSelectedBg: '#FFC801',
     },
+    Tooltip: {
+      colorTextLightSolid: '#ffffff',
+    },
   },
-  // componentSize: 'middle',
+  componentSize: 'middle',
 };
 
 function App() {

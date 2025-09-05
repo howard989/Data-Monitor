@@ -85,6 +85,7 @@ function Login() {
             disabled={loading}
             className="rounded-sm"
             style={{ borderRadius: 2, height: 44 }}
+            size="middle"
           >
             {loading ? (
               <span className="inline-flex items-center justify-center gap-2">

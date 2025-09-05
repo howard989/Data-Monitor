@@ -59,8 +59,13 @@ const SandwichFilter = ({
   return (
     <div className={`bg-white rounded-xl p-6 border border-gray-200 ${className}`}>
       <div className="mb-4">
-        <h3 className="text-lg font-semibold text-gray-800 mb-3">Filter Sandwiches</h3>
-        
+        <h2 className="relative pl-3 text-base font-semibold text-gray-900 mb-4 leading-6">
+          <span
+            aria-hidden="true"
+            className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 bg-yellow-400"
+          ></span>
+          Filter Sandwiches
+        </h2>
  
         <div className={`grid grid-cols-1 ${isMobile ? 'gap-3' : 'md:grid-cols-5 gap-3'}`}>
           <div>

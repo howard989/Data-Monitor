@@ -15,7 +15,7 @@ import TimezoneSelector from './TimezoneSelector';
 import SandwichChart from './SandwichChart';
 import SandwichFilter from './SandwichFilter';
 import useBnbUsdPrice from '../hooks/useBnbUsdPrice';
-import { Select, Input, Tooltip } from 'antd';
+import { Select, Input, Tooltip, Button } from 'antd';
 import DateRangePicker from './common/DateRangePicker';
 import { EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons';
 import '../css/Watermark.css';
@@ -646,32 +646,26 @@ const SandwichStats = () => {
               </div>
             </div>
             <div className={`flex ${isMobile ? 'w-full justify-between' : 'items-center'} gap-2`}>
-              {bnbUsdt && (
-                <div className="text-sm text-gray-600 flex items-center">
-                  1 BNB ≈ ${bnbUsdt.toFixed(2)} USD
-                </div>
-              )}
+              <div className="flex items-center gap-2">
+                {bnbUsdt && (
+                  <div className="text-sm text-gray-600 flex items-center">
+                    1 BNB ≈ ${bnbUsdt.toFixed(2)} USD
+                  </div>
+                )}
 
-              <Tooltip
-                title={isPaused ? 'Resume auto refresh' : 'Pause auto refresh'}
-                placement="top"
-              >
-                <button
-                  onClick={toggle}
-                  aria-pressed={isPaused}
-                  className={`rounded-full text-sm transition-all duration-200 ease-in-out
-                    ${isPaused
-                      ? 'text-gray-400 hover:text-gray-600'
-                      : 'text-[#F3BA2F] hover:text-amber-500'}`}
-                  aria-label={isPaused ? 'Resume auto refresh' : 'Pause auto refresh'}
+                <Tooltip
+                  title={isPaused ? 'Resume auto refresh' : 'Pause auto refresh'}
+                  placement="top"
                 >
-                  {isPaused ? (
-                    <EyeOutlined className="w-5 h-5" />
-                  ) : (
-                    <EyeInvisibleOutlined className="w-5 h-5" />
-                  )}
-                </button>
-              </Tooltip>
+                  <Button
+                    type="text"
+                    onClick={toggle}
+                    aria-pressed={isPaused}
+                    icon={isPaused ? <EyeOutlined /> : <EyeInvisibleOutlined />}
+                    aria-label={isPaused ? 'Resume auto refresh' : 'Pause auto refresh'}
+                  />
+                </Tooltip>
+              </div>
 
               <div className="h-5 w-px bg-gray-300 hidden sm:block"></div>
 
@@ -717,7 +711,7 @@ const SandwichStats = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-8">
           <div className="bg-white border border-gray-200 rounded p-4 md:p-6">
             <div className="text-gray-900 text-sm mb-2">Total Blocks Analyzed</div>
-            <div className={`${isMobile ? 'text-2xl' : 'text-3xl'} font-bold text-[#1E1E1E]`}>
+            <div className={`${isMobile ? 'text-2xl' : 'text-3xl'} font-bold text-gray-900`}>
               {stats ? formatNumber(stats.total_blocks) : '0'}
             </div>
             <div className="text-xs text-gray-400 mt-2">
@@ -727,7 +721,7 @@ const SandwichStats = () => {
 
           <div className="bg-white border border-gray-200 rounded p-4 md:p-6">
             <div className="text-gray-900 text-sm mb-2">Blocks with Sandwich</div>
-            <div className={`${isMobile ? 'text-2xl' : 'text-3xl'} font-bold text-[#E63946]`}>
+            <div className={`${isMobile ? 'text-2xl' : 'text-3xl'} font-bold text-red-500`}>
               {stats ? formatNumber(stats.sandwich_blocks) : '0'}
             </div>
             <div className="text-xs text-gray-400 mt-2">
@@ -737,7 +731,7 @@ const SandwichStats = () => {
 
           <div className="bg-white border border-gray-200 rounded p-4 md:p-6">
             <div className="text-gray-900 text-sm mb-2">Latest Block</div>
-            <div className={`${isMobile ? 'text-2xl' : 'text-3xl'} font-bold text-[#F3BA2F]`}>
+            <div className={`${isMobile ? 'text-2xl' : 'text-3xl'} font-bold text-yellow-400`}>
               #{stats?.latest_block || 0}
             </div>
             <div className="text-xs text-gray-400 mt-2">
@@ -776,20 +770,17 @@ const SandwichStats = () => {
             </div>
 
             {selectedBuilder && (
-              <button
+              <Button
+                type="primary"
                 onClick={() => {
                   setShowBuilderDetails(true);
                   setBuilderPage(1);
                   loadBuilderSandwiches(selectedBuilder, 1);
                 }}
-                className={
-                  isMobile
-                    ? 'w-full py-2 px-3 rounded bg-[#FFC801] text-[#1E1E1E] text-sm font-medium hover:bg-[#FFD829] transition-all'
-                    : 'px-2 py-1 rounded bg-[#FFC801] text-[#1E1E1E] font-medium hover:bg-[#FFD829] transition-all'
-                }
+                block={isMobile}
               >
                 View Details
-              </button>
+              </Button>
             )}
           </div>
 
@@ -812,16 +803,16 @@ const SandwichStats = () => {
                 )}
               </div>
               {(bundleFilter !== 'all' || amountRange.min || amountRange.max || frontrunRouter !== 'all') && (
-                <button
+                <Button
+                  size="middle"
                   onClick={() => {
                     setBundleFilter('all');
                     setAmountRange({ min: '', max: '' });
                     setFrontrunRouter('all');
                   }}
-                  className="text-xs px-3 py-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition-colors"
                 >
                   Clear Filters
-                </button>
+                </Button>
               )}
             </div>
 
@@ -929,29 +920,30 @@ const SandwichStats = () => {
             </div>
 
             <div className={`flex gap-2 ${isMobile ? 'w-full' : ''}`}>
-              <button
+              <Button
+                size="middle"
                 onClick={() => {
                   const anchor = getAnchorMs(recentBlocks);
                   setDateRange(monthRangeFromUtcMs(anchor));
                 }}
-                className="px-3 py-1 text-sm bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors"
                 disabled={statsLoading || isPaused}
               >
                 This Month
-              </button>
-              <button
+              </Button>
+              <Button
+                size="middle"
                 onClick={() => {
                   const anchor = getAnchorMs(recentBlocks);
                   setDateRange(prevMonthRangeFromUtcMs(anchor));
                 }}
-                className="px-3 py-1 text-sm bg-gray-50 text-gray-600 rounded hover:bg-gray-100 transition-colors"
                 disabled={statsLoading || isPaused}
               >
                 Last Month
-              </button>
+              </Button>
             </div>
 
-            <button
+            <Button
+              type="primary"
               onClick={() => {
                 fetchStats(dateRange.start, dateRange.end);
                 if (selectedBuilder) {
@@ -959,34 +951,22 @@ const SandwichStats = () => {
                 }
               }}
               disabled={isPaused || statsLoading}
-              className={
-                (isPaused || statsLoading)
-                  ? (isMobile
-                    ? 'w-full px-4 py-2 rounded bg-gray-200 text-gray-400 cursor-not-allowed'
-                    : 'px-4 py-1 rounded bg-gray-200 text-gray-400 cursor-not-allowed')
-                  : (isMobile
-                    ? 'w-full px-4 py-2 rounded bg-[#FFC801] text-[#1E1E1E] text-sm font-medium hover:bg-[#FFD829] transition-all'
-                    : 'px-4 py-1 rounded bg-[#FFC801] text-[#1E1E1E] text-sm font-medium hover:bg-[#FFD829] transition-all')
-              }
+              block={isMobile}
             >
               {statsLoading && !isPaused ? 'Applying...' : 'Apply'}
-            </button>
+            </Button>
             {(dateRange.start || dateRange.end) && (
-              <button
+              <Button
                 onClick={() => {
                   setDateRange({ start: '', end: '' });
                   if (selectedBuilder) {
                     loadBuilderStats(selectedBuilder, '', '');
                   }
                 }}
-                className={
-                  isMobile
-                    ? 'w-full px-4 py-2 rounded border border-gray-300 text-gray-700 text-sm hover:bg-gray-50 transition-all'
-                    : 'px-4 py-1 rounded border border-gray-300 text-gray-700 text-sm hover:bg-gray-50 transition-all'
-                }
+                block={isMobile}
               >
                 Clear
-              </button>
+              </Button>
             )}
           </div>
 
@@ -1305,28 +1285,18 @@ const SandwichStats = () => {
               </div>
 
               <div className={`flex ${isMobile ? 'flex-col' : 'flex-row'} gap-2`}>
-                <button
-            onClick={() => doSearch(searchPage - 1)}
+                <Button
+                  onClick={() => doSearch(searchPage - 1)}
                   disabled={searchPage <= 1 || searchLoading}
-                  className={`px-4 py-2 rounded font-medium transition-all ${
-                    searchPage <= 1 || searchLoading
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 hover:from-yellow-400 hover:to-amber-500'
-                  }`}
                 >
                   Previous
-                </button>
-                <button
-            onClick={() => doSearch(searchPage + 1)}
+                </Button>
+                <Button
+                  onClick={() => doSearch(searchPage + 1)}
                   disabled={searchPage >= searchTotalPages || searchLoading}
-                  className={`px-4 py-2 rounded font-medium transition-all ${
-                    searchPage >= searchTotalPages || searchLoading
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 hover:from-yellow-400 hover:to-amber-500'
-                  }`}
                 >
                   Next
-                </button>
+                </Button>
               </div>
             </div>
           )} */}
@@ -1350,27 +1320,20 @@ const SandwichStats = () => {
               className={`${isMobile ? 'w-full' : 'flex-1'}`}
             />
             <div className={`flex ${isMobile ? 'flex-col w-full' : 'flex-row'} gap-3`}>
-              <button
+              <Button
+                type="primary"
                 onClick={onSearchTx}
-                className={
-                  isMobile
-                    ? 'w-full px-4 py-2 rounded bg-[#FFC801] text-[#1E1E1E] font-medium hover:bg-[#FFD829] transition-all'
-                    : 'px-4 py-1 rounded bg-[#FFC801] text-[#1E1E1E] font-medium hover:bg-[#FFD829] transition-all'
-                }
+                block={isMobile}
               >
                 {txLoading ? 'Searching...' : 'Search'}
-              </button>
+              </Button>
               {txSearched && (
-                <button
+                <Button
                   onClick={onClearTx}
-                  className={
-                    isMobile
-                      ? 'w-full px-4 py-2 rounded border border-gray-300 text-gray-600 hover:bg-gray-50 transition-all'
-                      : 'px-4 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-50 transition-all'
-                  }
+                  block={isMobile}
                 >
                   Clear
-                </button>
+                </Button>
               )}
             </div>
           </div>
@@ -1473,27 +1436,20 @@ const SandwichStats = () => {
               className={`${isMobile ? 'w-full' : 'flex-1'}`}
             />
             <div className={`flex ${isMobile ? 'flex-col w-full' : 'flex-row'} gap-3`}>
-              <button
+              <Button
+                type="primary"
                 onClick={onSearchBlock}
-                className={
-                  isMobile
-                    ? 'w-full px-4 py-2 rounded bg-[#FFC801] text-[#1E1E1E] font-medium hover:bg-[#FFD829] transition-all'
-                    : 'px-4 py-1 rounded bg-[#FFC801] text-[#1E1E1E] font-medium hover:bg-[#FFD829] transition-all'
-                }
+                block={isMobile}
               >
                 {blockLoading ? 'Searching...' : 'Search'}
-              </button>
+              </Button>
               {blockSearched && (
-                <button
+                <Button
                   onClick={onClearBlock}
-                  className={
-                    isMobile
-                      ? 'w-full px-4 py-2 rounded border border-gray-300 text-gray-600 hover:bg-gray-50 transition-all'
-                      : 'px-4 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-50 transition-all'
-                  }
+                  block={isMobile}
                 >
                   Clear
-                </button>
+                </Button>
               )}
             </div>
           </div>
@@ -1688,12 +1644,13 @@ const SandwichStats = () => {
                   <h2 className="text-xl font-semibold text-gray-900">
                     Sandwich Attacks by {selectedBuilder}
                   </h2>
-                  <button
+                  <Button
+                    type="text"
                     onClick={() => setShowBuilderDetails(false)}
                     className="self-end text-gray-500 hover:text-gray-700 text-2xl font-bold"
                   >
                     ×
-                  </button>
+                  </Button>
                 </div>
                 <div className="mt-2 text-sm text-gray-600">
                   Total: {formatNumber(builderTotal)} attacks
@@ -1711,7 +1668,8 @@ const SandwichStats = () => {
 
                 <div className={`flex ${isMobile ? 'flex-wrap' : 'items-center'} gap-2 mt-3`}>
                   <span className="text-sm text-gray-600">Quick select:</span>
-                  <button
+                  <Button
+                    size="middle"
                     onClick={() => {
                       const end = new Date().toISOString().split('T')[0];
                       const start = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -1719,11 +1677,11 @@ const SandwichStats = () => {
                       setBuilderPage(1);
                       loadBuilderSandwiches(selectedBuilder, 1, start, end);
                     }}
-                    className="text-xs px-2 py-1 rounded bg-amber-100 hover:bg-amber-200 text-gray-700"
                   >
                     Last 7 days
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    size="middle"
                     onClick={() => {
                       const end = new Date().toISOString().split('T')[0];
                       const start = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -1731,11 +1689,11 @@ const SandwichStats = () => {
                       setBuilderPage(1);
                       loadBuilderSandwiches(selectedBuilder, 1, start, end);
                     }}
-                    className="text-xs px-2 py-1 rounded bg-amber-100 hover:bg-amber-200 text-gray-700"
                   >
                     Last 30 days
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    size="middle"
                     onClick={() => {
                       const end = new Date().toISOString().split('T')[0];
                       const start = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -1743,11 +1701,11 @@ const SandwichStats = () => {
                       setBuilderPage(1);
                       loadBuilderSandwiches(selectedBuilder, 1, start, end);
                     }}
-                    className="text-xs px-2 py-1 rounded bg-amber-100 hover:bg-amber-200 text-gray-700"
                   >
                     Last 2 months
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    size="middle"
                     onClick={() => {
                       const end = new Date().toISOString().split('T')[0];
                       const start = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -1755,10 +1713,9 @@ const SandwichStats = () => {
                       setBuilderPage(1);
                       loadBuilderSandwiches(selectedBuilder, 1, start, end);
                     }}
-                    className="text-xs px-2 py-1 rounded bg-amber-100 hover:bg-amber-200 text-gray-700"
                   >
                     Last 3 months
-                  </button>
+                  </Button>
                 </div>
 
                 {/* Date filter for builder details */}
@@ -1774,36 +1731,29 @@ const SandwichStats = () => {
                     />
                   </div>
                   <div className={`flex ${isMobile ? 'flex-col w-full' : 'flex-row'} gap-2`}>
-                    <button
+                    <Button
+                      type="primary"
                       onClick={() => {
                         if (builderDateRange.start && builderDateRange.end) {
                           setBuilderPage(1);
                           loadBuilderSandwiches(selectedBuilder, 1, builderDateRange.start, builderDateRange.end);
                         }
                       }}
-                      className={
-                        isMobile
-                          ? 'w-full px-3 py-2 rounded bg-[#FFC801] text-[#1E1E1E] text-sm hover:bg-[#FFD829] transition-all'
-                          : 'px-2 py-1 rounded bg-[#FFC801] text-[#1E1E1E] text-sm  hover:bg-[#FFD829] transition-all'
-                      }
+                      block={isMobile}
                     >
                       Apply
-                    </button>
+                    </Button>
                     {(builderDateRange.start || builderDateRange.end) && (
-                      <button
+                      <Button
                         onClick={() => {
                           setBuilderDateRange({ start: '', end: '' });
                           setBuilderPage(1);
                           loadBuilderSandwiches(selectedBuilder, 1);
                         }}
-                        className={
-                          isMobile
-                            ? 'w-full text-sm px-3 py-2 rounded border border-gray-300 text-gray-600 hover:bg-gray-50'
-                            : 'text-sm px-2 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-50'
-                        }
+                        block={isMobile}
                       >
                         Reset to default
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -1932,26 +1882,18 @@ const SandwichStats = () => {
                         </div>
                       </div>
                       <div className={`flex ${isMobile ? 'flex-col' : 'flex-row'} gap-2`}>
-                        <button
+                        <Button
                           onClick={() => loadBuilderSandwiches(selectedBuilder, builderPage - 1, builderDateRange.start, builderDateRange.end)}
                           disabled={builderPage <= 1}
-                          className={`px-4 py-2 rounded font-medium transition-all ${builderPage <= 1
-                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                            : 'bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 hover:from-yellow-400 hover:to-amber-500'
-                            }`}
                         >
                           Previous
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           onClick={() => loadBuilderSandwiches(selectedBuilder, builderPage + 1, builderDateRange.start, builderDateRange.end)}
                           disabled={builderPage >= builderTotalPages}
-                          className={`px-4 py-2 rounded font-medium transition-all ${builderPage >= builderTotalPages
-                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                            : 'bg-gradient-to-r from-yellow-300 to-amber-400 text-gray-800 hover:from-yellow-400 hover:to-amber-500'
-                            }`}
                         >
                           Next
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   </>
