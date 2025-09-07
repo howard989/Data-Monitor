@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import ReactECharts from 'echarts-for-react';
 import { fetchProductionTrend } from '../../data/apiSandwichStats';
 
-export default function ProductionBuildersTrend({ startDate, endDate, interval = 'daily' }) {
+export default function ProductionBuildersTrend({ startDate, endDate, interval = 'daily', height = 360 }) {
   const [data, setData] = useState({ series: [], summary: { builders: [] } });
   const [loading, setLoading] = useState(false);
 
@@ -76,18 +76,13 @@ export default function ProductionBuildersTrend({ startDate, endDate, interval =
     }))
   };
 
-  return (
-    <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6">
-      <h3 className="text-base font-semibold text-gray-900 mb-4">
-        MEV Blocks Trend by Builders
-      </h3>
-      {loading ? (
-        <div className="flex justify-center items-center h-80">
-          <div className="text-gray-500">Loading...</div>
-        </div>
-      ) : (
-        <ReactECharts option={option} style={{ height: 320 }} />
-      )}
-    </div>
-  );
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-full text-gray-500">
+        Loading...
+      </div>
+    );
+  }
+
+  return <ReactECharts option={option} style={{ height, width: '100%' }} />;
 }

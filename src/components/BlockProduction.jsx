@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Select, Spin, Button } from 'antd';
+import { Select, Spin, Button, Tabs } from 'antd';
 import { PlayCircleOutlined, LoadingOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
@@ -44,6 +44,8 @@ function BlockProduction() {
   const [customDailyTable, setCustomDailyTable] = useState({ rows: [], total: 0, page: 1, limit: 25 });
   const [customHourlyTable, setCustomHourlyTable] = useState({ rows: [], total: 0, page: 1, limit: 25 });
   const [customTableUpdateTime, setCustomTableUpdateTime] = useState({ daily: null, hourly: null });
+  const [activeChartTab, setActiveChartTab] = useState('pct');
+  const [activeResultsTab, setActiveResultsTab] = useState('daily');
 
   useEffect(() => {
     const check = () => setIsMobile(typeof window !== 'undefined' && window.innerWidth < 640);
@@ -106,6 +108,31 @@ function BlockProduction() {
     }
   }, [dateRange.start, dateRange.end, denom, hourlyTable.page, hourlyTable.limit]);
 
+  const loadCustom = useCallback(async (p = 1, l = 25) => {
+    if (!tableTimeRangeUTC.start || !tableTimeRangeUTC.end) return;
+    const startMs = new Date(tableTimeRangeUTC.start).getTime();
+    const endMs = new Date(tableTimeRangeUTC.end).getTime();
+    const diffHours = (endMs - startMs) / (1000 * 60 * 60);
+    const isHourly = diffHours <= 48;
+    try {
+      const res = await fetchBuildersTable(isHourly ? 'hourly' : 'daily', {
+        start: tableTimeRangeUTC.start,
+        end: tableTimeRangeUTC.end,
+        page: p,
+        limit: l,
+        denom
+      });
+      if (isHourly) {
+        setCustomHourlyTable({ rows: res.rows || [], total: res.total || 0, page: p, limit: l });
+      } else {
+        setCustomDailyTable({ rows: res.rows || [], total: res.total || 0, page: p, limit: l });
+      }
+      setCustomTableUpdateTime(prev => ({ ...prev, [isHourly ? 'hourly' : 'daily']: new Date() }));
+    } catch (error) {
+      console.error('Failed to load custom table:', error);
+    }
+  }, [tableTimeRangeUTC.start, tableTimeRangeUTC.end, denom]);
+
   const loadStats = useCallback(async () => {
     try {
       const res = await fetchBlockProductionStats(dateRange.start, dateRange.end);
@@ -135,7 +162,7 @@ function BlockProduction() {
     }
   }, [denom, loadDaily, loadHourly]);
 
-  
+
   useEffect(() => {
     if (dateRange.start && dateRange.end) {
       loadAllData();
@@ -151,6 +178,28 @@ function BlockProduction() {
     setCustomHourlyTable({ rows: [], total: 0, page: 1, limit: 25 });
     setCustomTableUpdateTime({ daily: null, hourly: null });
   }, [timezone]);
+
+  useEffect(() => {
+    if (!tableTimeRange.start || !tableTimeRange.end) {
+      setTableTimeRangeUTC({ start: '', end: '' });
+      setCustomDailyTable({ rows: [], total: 0, page: 1, limit: 25 });
+      setCustomHourlyTable({ rows: [], total: 0, page: 1, limit: 25 });
+      setCustomTableUpdateTime({ daily: null, hourly: null });
+      setActiveResultsTab('daily');
+      return;
+    }
+    const fmt = 'YYYY-MM-DD HH:mm';
+    const startUtc = dayjs.tz(tableTimeRange.start, fmt, timezone).utc().toISOString();
+    const endUtc = dayjs.tz(tableTimeRange.end, fmt, timezone).utc().toISOString();
+    setTableTimeRangeUTC({ start: startUtc, end: endUtc });
+  }, [tableTimeRange.start, tableTimeRange.end, timezone]);
+
+  useEffect(() => {
+    if (tableTimeRangeUTC.start && tableTimeRangeUTC.end) {
+      loadCustom();
+      setActiveResultsTab('custom');
+    }
+  }, [tableTimeRangeUTC.start, tableTimeRangeUTC.end, denom, loadCustom]);
 
   const formatNumber = (n) => new Intl.NumberFormat('en-US').format(Number(n || 0));
 
@@ -179,7 +228,7 @@ function BlockProduction() {
     return `${fmt(sMs, { year:'numeric', month:'short', day:'numeric' })} – ${fmt(eMs, { year:'numeric', month:'short', day:'numeric' })}`;
   };
 
-  const renderTable = (title, interval, loadFunc, customTableData = null, setCustomTableData = null, customUpdateTime = null) => {
+  const renderTable = (interval, loadFunc, customTableData = null, setCustomTableData = null, customUpdateTime = null) => {
     const isHourly = interval === 'hourly';
     const isCustom = customTableData !== null;
     const tableData = isCustom 
@@ -188,28 +237,12 @@ function BlockProduction() {
     const updateTime = isCustom
       ? customUpdateTime
       : tableUpdateTime;
-    
-    return (
-      <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 mb-6">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="relative pl-3 text-base font-semibold text-gray-900 leading-6">
-            <span aria-hidden className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 bg-yellow-400"></span>
-            MEV Builders Stats — {title}
-          </h3>
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-gray-600">Denominator:</span>
-            <Select 
-              size="small" 
-              value={denom} 
-              onChange={(v) => setDenom(v)} 
-              style={{ width: 120 }}
-            >
-              <Option value="total">All blocks</Option>
-              <Option value="builder">Builder blocks</Option>
-            </Select>
-          </div>
-        </div>
 
+    return (
+      <div>
+        <div className="flex justify-end mb-4">
+          <div className="text-sm text-gray-500">{formatNumber(tableData.total)} rows</div>
+        </div>
         <div className="overflow-x-auto">
           <div className="max-h-[600px] overflow-y-auto border border-gray-200 rounded-lg">
             <table className="w-full min-w-[760px] text-sm">
@@ -250,7 +283,7 @@ function BlockProduction() {
         </div>
 
         <div className="flex justify-between items-center mt-4 text-sm text-gray-600">
-          <span>{formatNumber(tableData.total)} rows</span>
+          <span>Page {tableData.page} of {Math.ceil(tableData.total / tableData.limit) || 1}</span>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <span>Rows/page:</span>
@@ -280,7 +313,6 @@ function BlockProduction() {
               >
                 ‹ Prev
               </Button>
-              <span>Page {tableData.page} of {Math.ceil(tableData.total / tableData.limit) || 1}</span>
               <Button
                 onClick={() => {
                   if (tableData.page * tableData.limit < tableData.total) {
@@ -298,7 +330,7 @@ function BlockProduction() {
             </div>
           </div>
         </div>
-        
+
         {updateTime && updateTime[isHourly ? 'hourly' : 'daily'] && (
           <div
             className="mt-4 text-right text-xs text-gray-400"
@@ -311,8 +343,47 @@ function BlockProduction() {
     );
   };
 
+  const resetCustomRange = () => {
+    setTableTimeRange({ start: '', end: '' });
+  };
+
+  const quickSetRange = (days) => {
+    const end = dayjs().utc().format('YYYY-MM-DD');
+    const start = dayjs().utc().subtract(days, 'day').format('YYYY-MM-DD');
+    setDateRange({ start, end });
+  };
+
+  const resultTabs = [
+    { key: 'daily', label: 'Daily Table', children: renderTable('daily', loadDaily) },
+    { key: 'hourly', label: 'Hourly Table', children: renderTable('hourly', loadHourly) }
+  ];
+  if (tableTimeRangeUTC.start && tableTimeRangeUTC.end) {
+    const startMs = new Date(tableTimeRangeUTC.start).getTime();
+    const endMs = new Date(tableTimeRangeUTC.end).getTime();
+    const diffHours = (endMs - startMs) / (1000 * 60 * 60);
+    const showHourly = diffHours <= 48;
+    resultTabs.push({
+      key: 'custom',
+      label: 'Custom Results',
+      children: (
+        <div>
+          <p className="text-sm text-gray-600 mb-4">
+            Showing {showHourly ? 'hourly' : 'daily'} data from {dayjs(tableTimeRangeUTC.start).tz(timezone).format('YYYY-MM-DD HH:mm')} to {dayjs(tableTimeRangeUTC.end).tz(timezone).format('YYYY-MM-DD HH:mm')}
+          </p>
+          {renderTable(
+            showHourly ? 'hourly' : 'daily',
+            loadCustom,
+            showHourly ? customHourlyTable : customDailyTable,
+            showHourly ? setCustomHourlyTable : setCustomDailyTable,
+            customTableUpdateTime
+          )}
+        </div>
+      )
+    });
+  }
+
   return (
-    <div className={`min-h-screen watermark-container ${isMobile ? 'p-4' : 'p-8 mx-auto max-w-[1140px]'}`}>
+    <div className={`min-h-screen watermark-container ${isMobile ? 'p-4' : 'p-8 mx-auto max-w-[1280px]'}`}>
       <div className="flex justify-between items-center mb-4">
         <nav className="text-sm text-gray-600">
           <Link to="/data-center" className="text-[#F3BA2F] hover:underline">Data Center</Link>
@@ -328,293 +399,181 @@ function BlockProduction() {
 
       <hr className="my-4 border-t border-gray-300" />
 
-      <div className={`flex ${isMobile ? 'flex-col' : 'justify-between items-start'} gap-3 mb-6`}>
-        <h1 className={`${isMobile ? 'text-xl' : 'text-2xl md:text-3xl'} font-bold text-gray-800`}>
-          MEV Builders Stats
-        </h1>
-        <div className={`flex ${isMobile ? 'w-full justify-between' : 'items-center'} gap-3`}>
-          <Button
-            type="primary"
-            onClick={loadAllData}
-            disabled={loading}
-            icon={loading ? <LoadingOutlined /> : <PlayCircleOutlined />}
-            size="middle"
-          >
-            {loading ? 'Loading...' : 'RUN'}
-          </Button>
-          <TimezoneSelector />
-        </div>
+      <div className="flex items-start justify-between mb-3">
+        <h1 className={`${isMobile ? 'text-xl' : 'text-2xl md:text-3xl'} font-bold text-gray-800`}>MEV Builders Stats</h1>
       </div>
 
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-8">
-        <div className="bg-white border border-gray-200 rounded-xl p-6 text-center">
-          <div className={`${isMobile ? 'text-3xl' : 'text-4xl'} font-bold text-gray-900 mb-2`}>
-            {stats ? formatNumber(stats.total_blocks) : '—'}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="lg:col-span-9 order-2 lg:order-1">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-8">
+            <div className="bg-white border border-gray-200 rounded-xl p-6">
+              <div className={`${isMobile ? 'text-3xl' : 'text-4xl'} font-bold text-yellow-400 mb-2 text-center`}>
+                {stats ? formatNumber(stats.builder_blocks) : '—'}
+              </div>
+              <div className="text-sm text-gray-600 font-medium text-center">MEV_Blocks_24H</div>
+              <div className="text-xs text-gray-400 mt-1 text-center">@bnbchain</div>
+            </div>
+            <div className="bg-white border border-gray-200 rounded-xl p-6 text-center">
+              <div className={`${isMobile ? 'text-3xl' : 'text-4xl'} font-bold text-gray-900 mb-2`}>
+                {stats ? formatNumber(stats.total_blocks) : '—'}
+              </div>
+              <div className="text-sm text-gray-600 font-medium">Total_MEV_Blocks</div>
+              <div className="text-xs text-gray-400 mt-1">@bnbchain</div>
+            </div>
+            <div className="bg-white border border-gray-200 rounded-xl p-6 text-center">
+              <div className={`${isMobile ? 'text-3xl' : 'text-4xl'} font-bold text-red-500 mb-2`}>
+                {stats ? formatNumber(stats.total_builders) : '—'}
+              </div>
+              <div className="text-sm text-gray-600 font-medium">Total_Builders</div>
+              <div className="text-xs text-gray-400 mt-1">@bnbchain</div>
+            </div>
           </div>
-          <div className="text-sm text-gray-600 font-medium">Total_MEV_Blocks</div>
-          <div className="text-xs text-gray-400 mt-1">@bnbchain</div>
-        </div>
 
-        <div className="bg-white border border-gray-200 rounded-xl p-6 text-center">
-          <div className={`${isMobile ? 'text-3xl' : 'text-4xl'} font-bold text-red-500 mb-2`}>
-            {stats ? formatNumber(stats.total_builders) : '—'}
-          </div>
-          <div className="text-sm text-gray-600 font-medium">Total_Builders</div>
-          <div className="text-xs text-gray-400 mt-1">@bnbchain</div>
-        </div>
+          {dateRange.start && dateRange.end && (
+            <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 mb-8">
+              <h2 className="relative pl-3 text-base font-semibold text-gray-900 mb-4 leading-6">
+                <span
+                  aria-hidden="true"
+                  className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 bg-yellow-400"
+                ></span>
+                Charts
+              </h2>
+              <Tabs
+                activeKey={activeChartTab}
+                onChange={(key) => {
+                  setActiveChartTab(key);
+                  setTimeout(() => window.dispatchEvent(new Event('resize')), 0);
+                }}
+                destroyInactiveTabPane={false}
+                animated={false}
+                items={[
+                  {
+                    key: 'pct',
+                    label: 'MEV Block PCT',
+                    children: (
+                      <ProductionPctChart
+                        startDate={dateRange.start}
+                        endDate={dateRange.end}
+                        interval="daily"
+                        height={360}
+                      />
+                    )
+                  },
+                  {
+                    key: 'share',
+                    label: 'Market Share',
+                    children: (
+                      <ProductionMarketShareChart
+                        startDate={dateRange.start}
+                        endDate={dateRange.end}
+                        interval="daily"
+                        height={360}
+                      />
+                    )
+                  },
+                  {
+                    key: 'trend',
+                    label: 'Trend by Builders',
+                    children: (
+                      <ProductionBuildersTrend
+                        startDate={dateRange.start}
+                        endDate={dateRange.end}
+                        interval="daily"
+                        height={360}
+                      />
+                    )
+                  }
+                ]}
+              />
+            </div>
+          )}
 
-        <div className="bg-white border border-gray-200 rounded-xl p-6 text-center">
-          <div className={`${isMobile ? 'text-3xl' : 'text-4xl'} font-bold text-yellow-400 mb-2`}>
-            {stats ? formatNumber(stats.builder_blocks) : '—'}
-          </div>
-          <div className="text-sm text-gray-600 font-medium">MEV_Blocks_24H</div>
-          <div className="text-xs text-gray-400 mt-1">@bnbchain</div>
-        </div>
-      </div>
 
-
-      {dateRange.start && dateRange.end && (
-        <>
-          <ProductionPctChart
-            startDate={dateRange.start}
-            endDate={dateRange.end}
-            interval="daily"
-          />
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <ProductionMarketShareChart
-              startDate={dateRange.start}
-              endDate={dateRange.end}
-              interval="daily"
+          <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 mb-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="relative pl-3 text-base font-semibold text-gray-900 leading-6">
+                <span aria-hidden className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 bg-yellow-400"></span>
+                Results
+              </h2>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Denominator</span>
+                <Select
+                  size="small"
+                  value={denom}
+                  onChange={setDenom}
+                  style={{ width: 140 }}
+                >
+                  <Option value="total">All blocks</Option>
+                  <Option value="builder">Builder blocks</Option>
+                </Select>
+              </div>
+            </div>
+            <Tabs
+              activeKey={activeResultsTab}
+              onChange={setActiveResultsTab}
+              destroyInactiveTabPane={false}
+              animated={false}
+              items={resultTabs}
             />
-            <ProductionBuildersTrend
-              startDate={dateRange.start}
-              endDate={dateRange.end}
-              interval="daily"
-            />
-          </div>
-        </>
-      )}
-
-   
-      <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 mb-6">
-        <h2 className="relative pl-3 text-base font-semibold text-gray-900 mb-4 leading-6">
-          <span aria-hidden className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 bg-yellow-400"></span>
-          Custom Time Range Query ({timezoneLabel})
-        </h2>
-        <div className={`flex ${isMobile ? 'flex-col' : 'sm:flex-row sm:items-center'} gap-2 sm:gap-3 mb-4`}>
-          <label className="text-sm text-gray-600">DateTime Range:</label>
-          <div className={`${isMobile ? 'w-full' : 'flex-1 max-w-md'}`}>
-            <DateRangePicker
-              value={tableTimeRange}
-              onChange={setTableTimeRange}
-              format="YYYY-MM-DD HH:mm"
-              showTime={{ format: 'HH:mm' }}
-              allowClear
-              timezone={timezone}
-              className="w-full"
-            />
-          </div>
-          <div className="flex gap-2">
-            <Button
-              type="primary"
-              onClick={() => {
-                if (!tableTimeRange.start || !tableTimeRange.end) return;
-                const fmt = 'YYYY-MM-DD HH:mm';
-                
-       
-                const startParsed = dayjs.tz(tableTimeRange.start, fmt, timezone);
-                const endParsed = dayjs.tz(tableTimeRange.end, fmt, timezone);
-                
-             
-                const startUtc = startParsed.utc().toISOString();
-                const endUtc = endParsed.utc().toISOString();
-                
-       
-                console.log('Time conversion:', {
-                  input: { start: tableTimeRange.start, end: tableTimeRange.end },
-                  timezone: timezone,
-                  parsed: { start: startParsed.format(), end: endParsed.format() },
-                  utc: { start: startUtc, end: endUtc }
-                });
-                
-                setTableTimeRangeUTC({ start: startUtc, end: endUtc });
-                
-          
-                const startMs = new Date(startUtc).getTime();
-                const endMs = new Date(endUtc).getTime();
-                const diffHours = (endMs - startMs) / (1000 * 60 * 60);
-                
-        
-                if (diffHours <= 48) {
-                  fetchBuildersTable('hourly', {
-                    start: startUtc,
-                    end: endUtc,
-                    page: 1,
-                    limit: 25,
-                    denom
-                  }).then(res => {
-                    console.log('Hourly response:', res);
-                    setCustomHourlyTable({
-                      rows: res.rows || [],
-                      total: res.total || 0,
-                      page: 1,
-                      limit: 25
-                    });
-                    setCustomTableUpdateTime(prev => ({ ...prev, hourly: new Date() }));
-                  }).catch(err => {
-                    console.error('Failed to load hourly:', err);
-                  });
-                } else {
-                  fetchBuildersTable('daily', {
-                    start: startUtc,
-                    end: endUtc,
-                    page: 1,
-                    limit: 25,
-                    denom
-                  }).then(res => {
-                    console.log('Daily response:', res);
-                    setCustomDailyTable({
-                      rows: res.rows || [],
-                      total: res.total || 0,
-                      page: 1,
-                      limit: 25
-                    });
-                    setCustomTableUpdateTime(prev => ({ ...prev, daily: new Date() }));
-                  }).catch(err => {
-                    console.error('Failed to load daily:', err);
-                  });
-                }
-              }}
-              disabled={!tableTimeRange.start || !tableTimeRange.end}
-              size="middle"
-            >
-              Apply
-            </Button>
-            <Button
-              onClick={() => {
-                setTableTimeRange({ start: '', end: '' });
-                setTableTimeRangeUTC({ start: '', end: '' });
-                setCustomDailyTable({ rows: [], total: 0, page: 1, limit: 25 });
-                setCustomHourlyTable({ rows: [], total: 0, page: 1, limit: 25 });
-                setCustomTableUpdateTime({ daily: null, hourly: null });
-              }}
-              size="middle"
-            >
-              Reset
-            </Button>
           </div>
         </div>
 
- 
-        {tableTimeRangeUTC.start && tableTimeRangeUTC.end && (() => {
-          const startMs = new Date(tableTimeRangeUTC.start).getTime();
-          const endMs = new Date(tableTimeRangeUTC.end).getTime();
-          const diffHours = (endMs - startMs) / (1000 * 60 * 60);
-          const showHourly = diffHours <= 48;
-          
-          return (
-            <>
-              <div className="border-t border-gray-200 pt-4 mt-4">
-                <p className="text-sm text-gray-600 mb-4">
-                  Showing {showHourly ? 'hourly' : 'daily'} data from {dayjs(tableTimeRangeUTC.start).tz(timezone).format('YYYY-MM-DD HH:mm')} to {dayjs(tableTimeRangeUTC.end).tz(timezone).format('YYYY-MM-DD HH:mm')}
-                </p>
-                
-                <div className="overflow-x-auto">
-                  <div className="max-h-[400px] overflow-y-auto border border-gray-200 rounded-lg">
-                    {showHourly 
-                      ? (() => {
-                          const tableData = customHourlyTable;
-                          return (
-                            <table className="w-full min-w-[760px] text-sm">
-                              <thead className="sticky top-0 z-10">
-                                <tr className="border-b border-gray-200 bg-gray-50">
-                                  <th className="text-left py-2 px-2 text-gray-600 font-medium">block_date</th>
-                                  <th className="text-left py-2 px-2 text-gray-600 font-medium">brand</th>
-                                  <th className="text-left py-2 px-2 text-gray-600 font-medium">blocks</th>
-                                  <th className="text-left py-2 px-2 text-gray-600 font-medium">integrated_validators</th>
-                                  <th className="text-left py-2 px-2 text-gray-600 font-medium">market_share</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {tableData.rows.map((r, i) => (
-                                  <tr key={i} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                                    <td className="py-2 px-2 text-gray-700">{formatBlockTime(r.block_date.includes('T') || r.block_date.endsWith('Z') ? r.block_date : r.block_date.replace(' ', 'T') + 'Z', timezone, r.block_date.includes(':') ? 'full' : 'date')}</td>
-                                    <td className="py-2 px-2 text-gray-800 font-medium">{r.brand}</td>
-                                    <td className="py-2 px-2 text-gray-700">{formatNumber(r.blocks)}</td>
-                                    <td className="py-2 px-2 text-gray-700">{formatNumber(r.integrated_validators)}</td>
-                                    <td className="py-2 px-2">
-                                      <div className="flex items-center gap-2">
-                                        <div className="w-28 h-2 bg-gray-100 rounded overflow-hidden">
-                                          <div 
-                                            className="h-2 bg-gradient-to-r from-[#FFC801] to-[#FFD829] rounded transition-all duration-300"
-                                            style={{ width: `${Math.min(100, Number(r.market_share || 0))}%` }}
-                                          />
-                                        </div>
-                                        <span className="text-amber-600 font-semibold">
-                                          {Number(r.market_share || 0).toFixed(2)}%
-                                        </span>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          );
-                        })()
-                      : (() => {
-                          const tableData = customDailyTable;
-                          return (
-                            <table className="w-full min-w-[760px] text-sm">
-                              <thead className="sticky top-0 z-10">
-                                <tr className="border-b border-gray-200 bg-gray-50">
-                                  <th className="text-left py-2 px-2 text-gray-600 font-medium">block_date</th>
-                                  <th className="text-left py-2 px-2 text-gray-600 font-medium">brand</th>
-                                  <th className="text-left py-2 px-2 text-gray-600 font-medium">blocks</th>
-                                  <th className="text-left py-2 px-2 text-gray-600 font-medium">integrated_validators</th>
-                                  <th className="text-left py-2 px-2 text-gray-600 font-medium">market_share</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {tableData.rows.map((r, i) => (
-                                  <tr key={i} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                                    <td className="py-2 px-2 text-gray-700">{formatBlockTime(r.block_date.includes('T') || r.block_date.endsWith('Z') ? r.block_date : r.block_date.replace(' ', 'T') + 'Z', timezone, r.block_date.includes(':') ? 'full' : 'date')}</td>
-                                    <td className="py-2 px-2 text-gray-800 font-medium">{r.brand}</td>
-                                    <td className="py-2 px-2 text-gray-700">{formatNumber(r.blocks)}</td>
-                                    <td className="py-2 px-2 text-gray-700">{formatNumber(r.integrated_validators)}</td>
-                                    <td className="py-2 px-2">
-                                      <div className="flex items-center gap-2">
-                                        <div className="w-28 h-2 bg-gray-100 rounded overflow-hidden">
-                                          <div 
-                                            className="h-2 bg-gradient-to-r from-[#FFC801] to-[#FFD829] rounded transition-all duration-300"
-                                            style={{ width: `${Math.min(100, Number(r.market_share || 0))}%` }}
-                                          />
-                                        </div>
-                                        <span className="text-amber-600 font-semibold">
-                                          {Number(r.market_share || 0).toFixed(2)}%
-                                        </span>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          );
-                        })()
-                    }
-                  </div>
+        <div className="lg:col-span-3 order-1 lg:order-2">
+          <div className="sticky top-0 space-y-4">
+            <div className="bg-white border border-gray-200 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-sm text-gray-600">Controls</div>
+                <div className="text-xs text-gray-500">{timezoneLabel}</div>
+              </div>
+              <div className="flex gap-2 mb-3">
+                <Button
+                  type="primary"
+                  onClick={loadAllData}
+                  disabled={loading}
+                  icon={loading ? <LoadingOutlined /> : <PlayCircleOutlined />}
+                  block
+                >
+                  {loading ? 'Loading...' : 'RUN'}
+                </Button>
+              </div>
+              <div className="mb-3">
+                <TimezoneSelector />
+              </div>
+              <div className="mb-3">
+                <div className="text-sm text-gray-600 mb-2">Quick Range</div>
+                <div className="grid grid-cols-3 gap-2">
+                  <Button onClick={() => quickSetRange(7)} size="small">7D</Button>
+                  <Button onClick={() => quickSetRange(30)} size="small">30D</Button>
+                  <Button onClick={() => quickSetRange(90)} size="small">90D</Button>
                 </div>
               </div>
-            </>
-          );
-        })()}
-      </div>
+            </div>
 
-      {renderTable('Daily', 'daily', loadDaily)}
-      {renderTable('Hourly', 'hourly', loadHourly)}
+            <div className="bg-white border border-gray-200 rounded-xl p-4">
+              <h2 className="relative pl-3 text-base font-semibold text-gray-900 mb-3 leading-6">
+                <span aria-hidden className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 bg-yellow-400"></span>
+                Custom Time Range
+              </h2>
+              <div className="mb-2 text-xs text-gray-500">Timezone: {timezoneLabel}</div>
+              <DateRangePicker
+                value={tableTimeRange}
+                onChange={setTableTimeRange}
+                format="YYYY-MM-DD HH:mm"
+                showTime={{ format: 'HH:mm' }}
+                allowClear
+                timezone={timezone}
+                className="w-full"
+              />
+              <div className="mt-3">
+                <Button onClick={resetCustomRange} disabled={!tableTimeRange.start && !tableTimeRange.end} block>Reset</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
 export default BlockProduction;
+

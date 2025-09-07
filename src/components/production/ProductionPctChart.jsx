@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import ReactECharts from 'echarts-for-react';
 import { fetchProductionPct } from '../../data/apiSandwichStats';
 
-export default function ProductionPctChart({ startDate, endDate, interval = 'daily', snapshotBlock = null }) {
+export default function ProductionPctChart({ startDate, endDate, interval = 'daily', snapshotBlock = null, height = 360 }) {
   const [series, setSeries] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -89,18 +89,13 @@ export default function ProductionPctChart({ startDate, endDate, interval = 'dai
     ]
   };
 
-  return (
-    <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 mb-6">
-      <h3 className="text-base font-semibold text-gray-900 mb-4">
-        MEV Block PCT — Percentage (Vs Total Blocks)
-      </h3>
-      {loading ? (
-        <div className="flex justify-center items-center h-80">
-          <div className="text-gray-500">Loading...</div>
-        </div>
-      ) : (
-        <ReactECharts option={option} style={{ height: 320 }} />
-      )}
-    </div>
-  );
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-full text-gray-500">
+        Loading...
+      </div>
+    );
+  }
+
+  return <ReactECharts option={option} style={{ height, width: '100%' }} />;
 }
