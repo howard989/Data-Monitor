@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Select, Spin, Button, Tabs } from 'antd';
+import { Select, Button, Tabs, Progress, Pagination } from 'antd';
 import { PlayCircleOutlined, LoadingOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
@@ -26,6 +26,9 @@ dayjs.extend(customParseFormat);
 
 const { Option } = Select;
 
+const DEFAULT_PAGE_SIZE = 12;
+const PAGE_SIZE_OPTIONS = ['12', '24', '48'];
+
 function BlockProduction() {
   const { timezone, timezoneLabel } = useTimezone();
   const [stats, setStats] = useState(null);
@@ -33,16 +36,15 @@ function BlockProduction() {
   const [loading, setLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
-  const [dailyTable, setDailyTable] = useState({ rows: [], total: 0, page: 1, limit: 25 });
-  const [hourlyTable, setHourlyTable] = useState({ rows: [], total: 0, page: 1, limit: 25 });
+  const [dailyTable, setDailyTable] = useState({ rows: [], total: 0, page: 1, limit: DEFAULT_PAGE_SIZE });
+  const [hourlyTable, setHourlyTable] = useState({ rows: [], total: 0, page: 1, limit: DEFAULT_PAGE_SIZE });
   const [denom, setDenom] = useState('total');
   const [tableUpdateTime, setTableUpdateTime] = useState({ daily: null, hourly: null });
   const [tableTimeRange, setTableTimeRange] = useState({ start: '', end: '' });
   const [tableTimeRangeUTC, setTableTimeRangeUTC] = useState({ start: '', end: '' });
-  
 
-  const [customDailyTable, setCustomDailyTable] = useState({ rows: [], total: 0, page: 1, limit: 25 });
-  const [customHourlyTable, setCustomHourlyTable] = useState({ rows: [], total: 0, page: 1, limit: 25 });
+  const [customDailyTable, setCustomDailyTable] = useState({ rows: [], total: 0, page: 1, limit: DEFAULT_PAGE_SIZE });
+  const [customHourlyTable, setCustomHourlyTable] = useState({ rows: [], total: 0, page: 1, limit: DEFAULT_PAGE_SIZE });
   const [customTableUpdateTime, setCustomTableUpdateTime] = useState({ daily: null, hourly: null });
   const [activeChartTab, setActiveChartTab] = useState('pct');
   const [activeResultsTab, setActiveResultsTab] = useState('daily');
@@ -108,7 +110,7 @@ function BlockProduction() {
     }
   }, [dateRange.start, dateRange.end, denom, hourlyTable.page, hourlyTable.limit]);
 
-  const loadCustom = useCallback(async (p = 1, l = 25) => {
+  const loadCustom = useCallback(async (p = 1, l = DEFAULT_PAGE_SIZE) => {
     if (!tableTimeRangeUTC.start || !tableTimeRangeUTC.end) return;
     const startMs = new Date(tableTimeRangeUTC.start).getTime();
     const endMs = new Date(tableTimeRangeUTC.end).getTime();
@@ -174,16 +176,16 @@ function BlockProduction() {
   useEffect(() => {
     setTableTimeRange({ start: '', end: '' });
     setTableTimeRangeUTC({ start: '', end: '' });
-    setCustomDailyTable({ rows: [], total: 0, page: 1, limit: 25 });
-    setCustomHourlyTable({ rows: [], total: 0, page: 1, limit: 25 });
+    setCustomDailyTable({ rows: [], total: 0, page: 1, limit: DEFAULT_PAGE_SIZE });
+    setCustomHourlyTable({ rows: [], total: 0, page: 1, limit: DEFAULT_PAGE_SIZE });
     setCustomTableUpdateTime({ daily: null, hourly: null });
   }, [timezone]);
 
   useEffect(() => {
     if (!tableTimeRange.start || !tableTimeRange.end) {
       setTableTimeRangeUTC({ start: '', end: '' });
-      setCustomDailyTable({ rows: [], total: 0, page: 1, limit: 25 });
-      setCustomHourlyTable({ rows: [], total: 0, page: 1, limit: 25 });
+      setCustomDailyTable({ rows: [], total: 0, page: 1, limit: DEFAULT_PAGE_SIZE });
+      setCustomHourlyTable({ rows: [], total: 0, page: 1, limit: DEFAULT_PAGE_SIZE });
       setCustomTableUpdateTime({ daily: null, hourly: null });
       setActiveResultsTab('daily');
       return;
@@ -228,7 +230,7 @@ function BlockProduction() {
     return `${fmt(sMs, { year:'numeric', month:'short', day:'numeric' })} – ${fmt(eMs, { year:'numeric', month:'short', day:'numeric' })}`;
   };
 
-  const renderTable = (interval, loadFunc, customTableData = null, setCustomTableData = null, customUpdateTime = null) => {
+  const renderCards = (interval, loadFunc, customTableData = null, setCustomTableData = null, customUpdateTime = null) => {
     const isHourly = interval === 'hourly';
     const isCustom = customTableData !== null;
     const tableData = isCustom 
@@ -240,95 +242,74 @@ function BlockProduction() {
 
     return (
       <div>
-        <div className="flex justify-end mb-4">
+        <div className="flex justify-between items-center mb-3">
           <div className="text-sm text-gray-500">{formatNumber(tableData.total)} rows</div>
         </div>
-        <div className="overflow-x-auto">
-          <div className="max-h-[600px] overflow-y-auto border border-gray-200 rounded-lg">
-            <table className="w-full min-w-[760px] text-sm">
-              <thead className="sticky top-0 z-10">
-                <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="text-left py-2 px-2 text-gray-600 font-medium">block_date</th>
-                  <th className="text-left py-2 px-2 text-gray-600 font-medium">brand</th>
-                  <th className="text-left py-2 px-2 text-gray-600 font-medium">blocks</th>
-                  <th className="text-left py-2 px-2 text-gray-600 font-medium">integrated_validators</th>
-                  <th className="text-left py-2 px-2 text-gray-600 font-medium">market_share</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tableData.rows.map((r, i) => (
-                  <tr key={i} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                    <td className="py-2 px-2 text-gray-700">{formatBlockTime(r.block_date.includes('T') || r.block_date.endsWith('Z') ? r.block_date : r.block_date.replace(' ', 'T') + 'Z', timezone, r.block_date.includes(':') ? 'full' : 'date')}</td>
-                    <td className="py-2 px-2 text-gray-800 font-medium">{r.brand}</td>
-                    <td className="py-2 px-2 text-gray-700">{formatNumber(r.blocks)}</td>
-                    <td className="py-2 px-2 text-gray-700">{formatNumber(r.integrated_validators)}</td>
-                    <td className="py-2 px-2">
-                      <div className="flex items-center gap-2">
-                        <div className="w-28 h-2 bg-gray-100 rounded overflow-hidden">
-                          <div 
-                            className="h-2 bg-gradient-to-r from-[#FFC801] to-[#FFD829] rounded transition-all duration-300"
-                            style={{ width: `${Math.min(100, Number(r.market_share || 0))}%` }}
-                          />
-                        </div>
-                        <span className="text-amber-600 font-semibold">
-                          {Number(r.market_share || 0).toFixed(2)}%
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {tableData.rows.map((r, i) => {
+            const dateStr = formatBlockTime(
+              r.block_date.includes('T') || r.block_date.endsWith('Z') ? r.block_date : r.block_date.replace(' ', 'T') + 'Z', 
+              timezone, 
+              r.block_date.includes(':') ? 'full' : 'date'
+            );
+            const ms = Math.max(0, Math.min(100, Number(r.market_share || 0)));
+            return (
+              <div key={i} className="border border-gray-200 rounded-xl p-4 bg-white hover:shadow-sm transition-shadow">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="text-xs text-gray-500">{dateStr}</div>
+                    <div className="text-base font-semibold text-gray-900 mt-1">{r.brand}</div>
+                  </div>
+                  <Progress
+                    type="circle"
+                    percent={+ms.toFixed(1)}
+                    width={56}
+                    strokeColor="#F3BA2F"
+                    format={(p) => `${(p ?? 0).toFixed(1)}%`}
+                  />
+                </div>
+
+                <div className="mt-4 space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600">Blocks</span>
+                    <span className="font-medium text-gray-900">{formatNumber(r.blocks)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600">Integrated Validators</span>
+                    <span className="font-medium text-gray-900">{formatNumber(r.integrated_validators)}</span>
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <div className="w-full h-2 bg-gray-100 rounded">
+                    <div
+                      className="h-2 rounded bg-yellow-400 transition-all duration-300"
+                      style={{ width: `${ms}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
-        <div className="flex justify-between items-center mt-4 text-sm text-gray-600">
-          <span>Page {tableData.page} of {Math.ceil(tableData.total / tableData.limit) || 1}</span>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span>Rows/page:</span>
-              <Select
-                size="small"
-                value={tableData.limit}
-                onChange={(l) => loadFunc(1, l)}
-                style={{ width: 80 }}
-              >
-                <Option value={25}>25</Option>
-                <Option value={50}>50</Option>
-                <Option value={100}>100</Option>
-              </Select>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                onClick={() => {
-                  if (tableData.page > 1) {
-                    loadFunc(tableData.page - 1, tableData.limit);
-                    if (isCustom && setCustomTableData) {
-                      setCustomTableData(prev => ({ ...prev, page: tableData.page - 1 }));
-                    }
-                  }
-                }}
-                disabled={tableData.page <= 1}
-                size="small"
-              >
-                ‹ Prev
-              </Button>
-              <Button
-                onClick={() => {
-                  if (tableData.page * tableData.limit < tableData.total) {
-                    loadFunc(tableData.page + 1, tableData.limit);
-                    if (isCustom && setCustomTableData) {
-                      setCustomTableData(prev => ({ ...prev, page: tableData.page + 1 }));
-                    }
-                  }
-                }}
-                disabled={tableData.page * tableData.limit >= tableData.total}
-                size="small"
-              >
-                Next ›
-              </Button>
-            </div>
-          </div>
+        <div className="mt-4">
+          <Pagination
+            size="small"
+            current={tableData.page}
+            pageSize={tableData.limit}
+            total={tableData.total}
+            showSizeChanger
+            pageSizeOptions={PAGE_SIZE_OPTIONS}
+            showTotal={(t, range) => `${range[0]}-${range[1]} of ${t}`}
+            onChange={(page, pageSize) => {
+              loadFunc(page, pageSize);
+              if (isCustom && setCustomTableData) {
+                setCustomTableData(prev => ({ ...prev, page, limit: pageSize }));
+              }
+            }}
+          />
         </div>
 
         {updateTime && updateTime[isHourly ? 'hourly' : 'daily'] && (
@@ -354,8 +335,8 @@ function BlockProduction() {
   };
 
   const resultTabs = [
-    { key: 'daily', label: 'Daily Table', children: renderTable('daily', loadDaily) },
-    { key: 'hourly', label: 'Hourly Table', children: renderTable('hourly', loadHourly) }
+    { key: 'daily', label: 'Daily', children: renderCards('daily', loadDaily) },
+    { key: 'hourly', label: 'Hourly', children: renderCards('hourly', loadHourly) }
   ];
   if (tableTimeRangeUTC.start && tableTimeRangeUTC.end) {
     const startMs = new Date(tableTimeRangeUTC.start).getTime();
@@ -364,13 +345,13 @@ function BlockProduction() {
     const showHourly = diffHours <= 48;
     resultTabs.push({
       key: 'custom',
-      label: 'Custom Results',
+      label: 'Custom',
       children: (
         <div>
           <p className="text-sm text-gray-600 mb-4">
             Showing {showHourly ? 'hourly' : 'daily'} data from {dayjs(tableTimeRangeUTC.start).tz(timezone).format('YYYY-MM-DD HH:mm')} to {dayjs(tableTimeRangeUTC.end).tz(timezone).format('YYYY-MM-DD HH:mm')}
           </p>
-          {renderTable(
+          {renderCards(
             showHourly ? 'hourly' : 'daily',
             loadCustom,
             showHourly ? customHourlyTable : customDailyTable,
@@ -490,22 +471,25 @@ function BlockProduction() {
 
 
           <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 mb-6">
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
               <h2 className="relative pl-3 text-base font-semibold text-gray-900 leading-6">
                 <span aria-hidden className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 bg-yellow-400"></span>
                 Results
               </h2>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Denominator</span>
-                <Select
-                  size="small"
-                  value={denom}
-                  onChange={setDenom}
-                  style={{ width: 140 }}
-                >
-                  <Option value="total">All blocks</Option>
-                  <Option value="builder">Builder blocks</Option>
-                </Select>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600">Denominator</span>
+                  <Select
+                    size="small"
+                    value={denom}
+                    onChange={setDenom}
+                    style={{ width: 140 }}
+                  >
+                    <Option value="total">All blocks</Option>
+                    <Option value="builder">Builder blocks</Option>
+                  </Select>
+                </div>
               </div>
             </div>
             <Tabs
@@ -576,4 +560,3 @@ function BlockProduction() {
 }
 
 export default BlockProduction;
-
