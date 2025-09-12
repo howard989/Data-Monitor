@@ -398,43 +398,108 @@ function BlockProduction() {
       key: 'daily',
       label: 'Daily',
       children: (() => {
-        const pieData = dailyTable.rows.map(r => ({
-          name: r.brand,
-          value: Number(r.blocks || 0)
-        }));
-        const pieOption = {
+        const byBuilder = new Map();
+        (dailyTable.rows || []).forEach(r => {
+          const name = (r.builder_group ?? r.brand ?? 'Unknown').trim();
+          const v = Number(r.blocks || 0);
+          byBuilder.set(name, (byBuilder.get(name) || 0) + v);
+        });
+
+        let slices = Array.from(byBuilder.entries()).map(([name, value]) => ({ name, value }));
+        slices.sort((a, b) => b.value - a.value);
+
+        const MAX_SLICES = 10;
+        const total = slices.reduce((s, e) => s + e.value, 0);
+        if (slices.length > MAX_SLICES) {
+          const top = slices.slice(0, MAX_SLICES);
+          const restSum = slices.slice(MAX_SLICES).reduce((s, e) => s + e.value, 0);
+          if (restSum > 0) top.push({ name: 'Other', value: restSum });
+          slices = top;
+        }
+
+
+        const PALETTE = [
+          '#FFC801', '#5470c6', '#91cc75', '#fac858', '#ee6666',
+          '#73c0de', '#3ba272', '#fc8452', '#9a60b4', '#ea7ccc',
+          '#a0a7e6', '#c4ccd3'
+        ];
+
+        const dayTitle = resultsDate ? dayjs(resultsDate).tz(timezone).format('YYYY-MM-DD') : '';
+        const option = {
+          color: PALETTE,
+          title: {
+            text: 'Daily Market Share',
+            subtext: dayTitle,
+            left: 'center',
+            top: 8,
+            textStyle: { fontSize: 14, fontWeight: 600 },
+            subtextStyle: { color: '#6b7280', fontSize: 12 }
+          },
           tooltip: {
             trigger: 'item',
-            formatter: '{b}: {c} blocks ({d}%)'
+            formatter: (p) => {
+              const val = Number(p.value || 0);
+              const pct = (p.percent ?? 0).toFixed(1);
+              return `${p.name}<br/>Blocks: ${val.toLocaleString()}<br/>Share: ${pct}%`;
+            }
+          },
+          legend: {
+            type: 'scroll',
+            orient: 'vertical',
+            right: 0,
+            top: 'middle',
+            height: 300,
+            itemWidth: 12,
+            itemHeight: 12,
+            textStyle: { fontSize: 12 },
+            data: slices.map(s => s.name)
           },
           series: [{
+            name: 'Blocks',
             type: 'pie',
-            radius: ['30%', '70%'],
-            avoidLabelOverlap: false,
-            itemStyle: {
-              borderRadius: 10,
-              borderColor: '#fff',
-              borderWidth: 2
-            },
+            radius: ['42%', '68%'],
+            center: ['38%', '55%'],
+            data: slices,
+            minAngle: 3,
+            avoidLabelOverlap: true,
             label: {
               show: true,
-              position: 'outside',
-              formatter: '{b}\n{d}%'
+              formatter: (p) => {
+                const pct = (p.percent ?? 0).toFixed(1);
+                return `${p.name}\n${pct}%`;
+              },
+              fontSize: 12,
+              lineHeight: 16
+            },
+            labelLine: {
+              show: true,
+              length: 12,
+              length2: 10,
+              smooth: true
             },
             emphasis: {
+              scale: true,
+              scaleSize: 6,
+              itemStyle: {
+                shadowBlur: 18,
+                shadowColor: 'rgba(0,0,0,0.25)'
+              },
               label: {
-                show: true,
-                fontSize: 16,
+                fontSize: 13,
                 fontWeight: 'bold'
               }
             },
-            data: pieData
-          }]
+            animation: true,
+            animationDuration: 600,
+            animationEasing: 'cubicOut'
+          }],
+          grid: { containLabel: false }
         };
+
         return (
           <div>
-            {pieData.length > 0 ? (
-              <ReactECharts option={pieOption} style={{ height: '400px' }} />
+            {slices.length > 0 ? (
+              <ReactECharts option={option} style={{ height: '420px', width: '100%' }} />
             ) : (
               <div className="text-center text-gray-500 py-8">No data available</div>
             )}
