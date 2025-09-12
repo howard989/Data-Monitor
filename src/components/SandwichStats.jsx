@@ -157,10 +157,6 @@ const SandwichStats = () => {
     }
   };
 
-  // const loadBuilderStats = async (name, startDate = null, endDate = null) => {
-  //   const { data } = await fetchSandwichStats(name || null, startDate, endDate);
-  //   setBuilderStats(data || null);
-  // };
   const loadBuilderStats = async (name, startDate = null, endDate = null) => {
     const { data } = await fetchSandwichStats(name || null, startDate, endDate, {
       bundleFilter,
@@ -493,15 +489,6 @@ const SandwichStats = () => {
     fetchStats(dateRange.start, dateRange.end);
   }, [bundleFilter, amountRange.min, amountRange.max, frontrunRouter, isPaused]);
 
-  // useEffect(() => {
-  //   if (!authToken) return;
-  //   if (!selectedBuilder) {
-  //     setBuilderStats(null);
-  //     return;
-  //   }
-  //   if (isPaused) return;
-  //   loadBuilderStats(selectedBuilder, dateRange.start, dateRange.end);
-  // }, [selectedBuilder, authToken, dateRange.start, dateRange.end, isPaused]);
 
   useEffect(() => {
     if (!authToken) return;
@@ -1263,73 +1250,6 @@ const SandwichStats = () => {
               </table>
             </div>
           )}
-          
-          {/* {searchResults.length > 0 && (
-            <div className={`flex ${isMobile ? 'flex-col gap-3' : 'justify-between items-center'} mt-4`}>
-              <div className={`flex ${isMobile ? 'flex-col gap-2' : 'items-center gap-3'}`}>
-                <span className="text-sm text-gray-600">
-                  Page {searchPage} of {Math.max(1, searchTotalPages)} • {searchTotal.toLocaleString()} results
-                </span>
-                {!searchFilters?.victimTo?.trim() && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-500">Rows/page:</span>
-                    <Select
-                      size="small"
-                      value={searchLimit}
-                      onChange={(v) => {
-                        setSearchLimit(v);
-                        setSearchPage(1);
-                        doSearch(1);
-                      }}
-                      disabled={searchLoading}
-                      options={[
-                        { value: 10, label: '10' },
-                        { value: 25, label: '25' },
-                        { value: 50, label: '50' },
-                        { value: 100, label: '100' },
-                      ]}
-                      style={{ width: 80 }}
-                    />
-                  </div>
-                )}
-                {searchTotalPages > 1 && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-500">Go to:</span>
-                    <input
-                      type="number"
-                      min="1"
-                      max={searchTotalPages}
-                      className="w-16 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          const page = parseInt(e.target.value);
-                          if (page >= 1 && page <= searchTotalPages) {
-                            doSearch(page);
-                          }
-                        }
-                      }}
-                      placeholder="#"
-                    />
-                  </div>
-                )}
-              </div>
-
-              <div className={`flex ${isMobile ? 'flex-col' : 'flex-row'} gap-2`}>
-                <Button
-                  onClick={() => doSearch(searchPage - 1)}
-                  disabled={searchPage <= 1 || searchLoading}
-                >
-                  Previous
-                </Button>
-                <Button
-                  onClick={() => doSearch(searchPage + 1)}
-                  disabled={searchPage >= searchTotalPages || searchLoading}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
-          )} */}
         </div>
 
 
