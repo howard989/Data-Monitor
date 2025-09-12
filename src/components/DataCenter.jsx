@@ -31,6 +31,14 @@ function DataCenter() {
         enabled: true,
         href: '/block-stats',
       },
+      {
+        title: 'Refund Status',
+        description: 'Check the status of refunds for transactions',
+        categoryKey: 'builder',
+        chains: ['BNB'],
+        enabled: true,
+        href: '/refund-status',
+      },
     ],
     []
   );

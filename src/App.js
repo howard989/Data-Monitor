@@ -10,6 +10,7 @@ import ArbDetails from './components/ArbDetails';
 import SandwichStats from './components/SandwichStats';
 import DataCenter from './components/DataCenter';
 import BlockProduction from './components/BlockProduction';
+import RefundStatus from './components/RefundStatus';
 import { TimezoneProvider } from './context/TimezoneContext';
 
 const antdTheme = {
@@ -69,6 +70,15 @@ function App() {
                                     element={
                                         <PrivateRoute>
                                             <BlockProduction />
+                                        </PrivateRoute>
+                                    }
+                                />
+
+                                <Route
+                                    path="/refund-status"
+                                    element={
+                                        <PrivateRoute>
+                                            <RefundStatus />
                                         </PrivateRoute>
                                     }
                                 />
