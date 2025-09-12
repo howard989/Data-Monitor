@@ -592,7 +592,7 @@ function BlockProduction() {
               </h2>
               <div className="flex gap-2">
                 <Button size="small" type="primary" onClick={() => setMonthPreset('current')}>This Month</Button>
-                <Button size="small" onClick={() => setMonthPreset('prev')}>Last Month</Button>
+                {/* <Button size="small" onClick={() => setMonthPreset('prev')}>Last Month</Button> */}
               </div>
               <Tabs
                 activeKey={activeChartTab}

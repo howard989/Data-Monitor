@@ -947,7 +947,8 @@ const SandwichStats = () => {
               >
                 This Month
               </Button>
-              <Button
+
+              {/* <Button
                 size="middle"
                 onClick={() => {
                   const anchor = getAnchorMs(recentBlocks);
@@ -956,7 +957,8 @@ const SandwichStats = () => {
                 disabled={statsLoading || isPaused}
               >
                 Last Month
-              </Button>
+              </Button> */}
+
             </div>
 
             <Button
