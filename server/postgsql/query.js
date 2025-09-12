@@ -388,91 +388,124 @@ async function getSandwichStats(
   amountRange = null,
   frontrunRouter = 'all'
 ) {
-
   const usingDefaultWindow = !startDate && !endDate;
   let monthInfo = null;
-  
   if (usingDefaultWindow) {
-    monthInfo = await getLatestMonthRangeFromDB();  // 使用DB最新数据的月份
+    monthInfo = await getLatestMonthRangeFromDB();
     startDate = monthInfo.startDate;
     endDate = monthInfo.endDate;
   }
-  
   const startDateTime = usingDefaultWindow ? monthInfo.startDateTime : `${startDate}T00:00:00Z`;
   const endDateTime = usingDefaultWindow ? monthInfo.endDateTime : `${endDate}T23:59:59Z`;
-
   const cacheKey = JSON.stringify({ builderName, startDate, endDate, bundleFilter, amountRange, frontrunRouter });
   const cached = statsCache.get(cacheKey);
   if (cached) return cached;
-
   const params = [startDateTime, endDateTime];
   let p = 3;
   const dateFilterAB = ` AND block_time >= $1::timestamptz AND block_time <= $2::timestamptz`;
   const dateFilterBO = ` AND bo.block_time >= $1::timestamptz AND bo.block_time <= $2::timestamptz`;
-
-
   if (builderName) {
-    const sql = `
-      WITH f AS (
-        SELECT *
-        FROM ${TBL_OVERVIEW}
-        WHERE builder_kind = 'builder'
-          AND builder_group = $${p}
-          ${dateFilterAB}
-      )
-      SELECT
-        COUNT(*)::bigint AS total_blocks,
-        COUNT(*) FILTER (WHERE has_sandwich)::bigint AS sandwich_blocks,
-        MIN(block_number) AS earliest_block,
-        MAX(block_number) AS latest_block
-      FROM f;
-    `;
-    const { rows } = await pool.query(sql, [...params, builderName]);
-    const r = rows[0] || {};
-    const total = Number(r.total_blocks || 0);
-    const sand = Number(r.sandwich_blocks || 0);
-    const result = {
-      scope: 'builder',
-      builder_name: builderName,
-      total_blocks: total,
-      sandwich_blocks: sand,
-      sandwich_percentage: total ? Number((100 * sand / total).toFixed(6)) : 0,
-      earliest_block: Number(r.earliest_block || 0),
-      latest_block: Number(r.latest_block || 0),
-      date_range: { start: startDate, end: endDate },
-      fast_path: false
-    };
-    statsCache.set(cacheKey, result);
-    return result;
+    const baseParams = [startDateTime, endDateTime, builderName];
+    const { whereSql, params: filledParams, hasAmount } = buildFilters(amountRange, bundleFilter, frontrunRouter, baseParams, 4);
+    const hasExtraFilters = (bundleFilter !== 'all') || hasAmount || (frontrunRouter !== 'all');
+    if (!hasExtraFilters) {
+      const sql = `
+        WITH f AS (
+          SELECT block_number, has_sandwich
+          FROM ${TBL_OVERVIEW}
+          WHERE builder_kind = 'builder'
+            AND builder_group = $3
+            AND block_time >= $1::timestamptz AND block_time <= $2::timestamptz
+        )
+        SELECT
+          COUNT(*)::bigint AS total_blocks,
+          COUNT(*) FILTER (WHERE has_sandwich)::bigint AS sandwich_blocks,
+          MIN(block_number) AS earliest_block,
+          MAX(block_number) AS latest_block
+        FROM f;
+      `;
+      const { rows } = await pool.query(sql, baseParams);
+      const r = rows[0] || {};
+      const total = Number(r.total_blocks || 0);
+      const sand = Number(r.sandwich_blocks || 0);
+      const result = {
+        scope: 'builder',
+        builder_name: builderName,
+        total_blocks: total,
+        sandwich_blocks: sand,
+        sandwich_percentage: total ? Number((100 * sand / total).toFixed(6)) : 0,
+        earliest_block: Number(r.earliest_block || 0),
+        latest_block: Number(r.latest_block || 0),
+        date_range: { start: startDate, end: endDate },
+        month_info: monthInfo,
+        fast_path: true
+      };
+      statsCache.set(cacheKey, result);
+      return result;
+    } else {
+      const sql = `
+        WITH f AS (
+          SELECT block_number
+          FROM ${TBL_OVERVIEW}
+          WHERE builder_kind = 'builder'
+            AND builder_group = $3
+            AND block_time >= $1::timestamptz AND block_time <= $2::timestamptz
+        ),
+        fs AS (
+          SELECT DISTINCT sa.block_number
+          FROM public.sandwich_attack sa
+          JOIN ${TBL_OVERVIEW} bo ON bo.block_number = sa.block_number
+          WHERE bo.builder_kind = 'builder'
+            AND bo.builder_group = $3
+            AND bo.block_time >= $1::timestamptz AND bo.block_time <= $2::timestamptz
+            ${whereSql}
+        )
+        SELECT
+          (SELECT COUNT(*) FROM f)::bigint AS total_blocks,
+          (SELECT COUNT(*) FROM fs)::bigint AS sandwich_blocks,
+          (SELECT MIN(block_number) FROM f) AS earliest_block,
+          (SELECT MAX(block_number) FROM f) AS latest_block;
+      `;
+      const { rows } = await pool.query(sql, filledParams);
+      const r = rows[0] || {};
+      const total = Number(r.total_blocks || 0);
+      const sand = Number(r.sandwich_blocks || 0);
+      const result = {
+        scope: 'builder',
+        builder_name: builderName,
+        total_blocks: total,
+        sandwich_blocks: sand,
+        sandwich_percentage: total ? Number((100 * sand / total).toFixed(6)) : 0,
+        earliest_block: Number(r.earliest_block || 0),
+        latest_block: Number(r.latest_block || 0),
+        date_range: { start: startDate, end: endDate },
+        month_info: monthInfo,
+        fast_path: false
+      };
+      statsCache.set(cacheKey, result);
+      return result;
+    }
   }
-
-
-  const { whereSql, params: filledParams, hasAmount } =
-    buildFilters(amountRange, bundleFilter, frontrunRouter, params, p);
-
+  const { whereSql, params: filledParams, hasAmount } = buildFilters(amountRange, bundleFilter, frontrunRouter, params, p);
   const noExtraFilters = (bundleFilter === 'all') && !hasAmount && (frontrunRouter === 'all');
-
-
   let out;
   if (noExtraFilters) {
     out = await runBaseAndBreakdownNoFilter(filledParams, dateFilterAB);
   } else {
     out = await runBaseAndBreakdownWithFilter(filledParams, dateFilterAB, dateFilterBO, whereSql);
   }
-
-
   const result = {
     ...out,
     sandwich_percentage: out.total_blocks ? Number((100 * out.sandwich_blocks / out.total_blocks).toFixed(6)) : 0,
     sandwich_percentage_on_builder: out.builder_blocks ? Number((100 * out.sandwich_builder_blocks / out.builder_blocks).toFixed(6)) : 0,
     date_range: { start: startDate, end: endDate },
-    month_info: monthInfo,  // Include month info when using default
+    month_info: monthInfo,
     fast_path: false
   };
-
   statsCache.set(cacheKey, result);
   return result;
 }
+
 
 
 async function getRecentBlocks(limit = 50) {

@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Select, Button, Tabs, Progress, Pagination } from 'antd';
+import { Select, Button, Tabs, Progress, Pagination, DatePicker } from 'antd';
 import { PlayCircleOutlined, LoadingOutlined } from '@ant-design/icons';
+import ReactECharts from 'echarts-for-react';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
@@ -9,12 +10,11 @@ import customParseFormat from 'dayjs/plugin/customParseFormat';
 import { useTimezone } from '../context/TimezoneContext';
 import TimezoneSelector from './TimezoneSelector';
 import DateRangePicker from './common/DateRangePicker';
-import { 
-  fetchBlockProductionStats, 
-  fetchBuildersTable,  
+import {
+  fetchBlockProductionStats,
+  fetchBuildersTable,
   fetchRange13Months
 } from '../data/apiSandwichStats';
-import ProductionPctChart from './production/ProductionPctChart';
 import ProductionMarketShareChart from './production/ProductionMarketShareChart';
 import ProductionBuildersTrend from './production/ProductionBuildersTrend';
 import { formatBlockTime } from '../utils/timeFormatter';
@@ -46,8 +46,12 @@ function BlockProduction() {
   const [customDailyTable, setCustomDailyTable] = useState({ rows: [], total: 0, page: 1, limit: DEFAULT_PAGE_SIZE });
   const [customHourlyTable, setCustomHourlyTable] = useState({ rows: [], total: 0, page: 1, limit: DEFAULT_PAGE_SIZE });
   const [customTableUpdateTime, setCustomTableUpdateTime] = useState({ daily: null, hourly: null });
-  const [activeChartTab, setActiveChartTab] = useState('pct');
+  const [activeChartTab, setActiveChartTab] = useState('share');
   const [activeResultsTab, setActiveResultsTab] = useState('daily');
+  const [resultsDate, setResultsDate] = useState(() => dayjs().tz(timezone).format('YYYY-MM-DD'));
+
+  const [resultsDailyPage, setResultsDailyPage] = useState(1);
+  const [resultsHourlyPage, setResultsHourlyPage] = useState(1);
 
   useEffect(() => {
     const check = () => setIsMobile(typeof window !== 'undefined' && window.innerWidth < 640);
@@ -57,58 +61,53 @@ function BlockProduction() {
   }, []);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const r = await fetchRange13Months();
-        const { startDate, endDate } = r.data || {};
-        setDateRange({ start: startDate, end: endDate });
-      } catch (e) {
-        console.error('Failed to get default range:', e);
-      }
-    })();
+    const now = dayjs().utc();
+    setDateRange({
+      start: now.startOf('month').format('YYYY-MM-DD'),
+      end: now.format('YYYY-MM-DD'),
+    });
   }, []);
 
-  const loadDaily = useCallback(async (p = dailyTable.page, l = dailyTable.limit) => {
+
+  const loadDaily = useCallback(async (p = dailyTable.page, l = dailyTable.limit, overrideStart = null, overrideEnd = null) => {
     try {
-      const res = await fetchBuildersTable('daily', {
-        startDate: dateRange.start,
-        endDate: dateRange.end,
-        page: p, 
-        limit: l, 
-        denom
-      });
-      setDailyTable({ 
-        rows: res.rows || [], 
-        total: res.total || 0, 
-        page: p, 
-        limit: l 
-      });
+      const payload = { page: p, limit: l, denom };
+      if (overrideStart && overrideEnd) {
+        const hasTime = overrideStart.includes('T') || overrideEnd.includes('T');
+        if (hasTime) { payload.start = overrideStart; payload.end = overrideEnd; }
+        else { payload.startDate = overrideStart; payload.endDate = overrideEnd; }
+      } else {
+        payload.startDate = dateRange.start;
+        payload.endDate = dateRange.end;
+      }
+      const res = await fetchBuildersTable('daily', payload);
+      setDailyTable({ rows: res.rows || [], total: res.total || 0, page: p, limit: l });
       setTableUpdateTime(prev => ({ ...prev, daily: new Date() }));
     } catch (error) {
       console.error('Failed to load daily table:', error);
     }
-  }, [dateRange.start, dateRange.end, denom, dailyTable.page, dailyTable.limit]);
+  }, [dateRange.start, dateRange.end, denom]);
 
-  const loadHourly = useCallback(async (p = hourlyTable.page, l = hourlyTable.limit) => {
+  const loadHourly = useCallback(async (p = hourlyTable.page, l = hourlyTable.limit, overrideStart = null, overrideEnd = null) => {
     try {
-      const res = await fetchBuildersTable('hourly', {
-        startDate: dateRange.start,
-        endDate: dateRange.end,
-        page: p, 
-        limit: l, 
-        denom
-      });
-      setHourlyTable({ 
-        rows: res.rows || [], 
-        total: res.total || 0, 
-        page: p, 
-        limit: l 
-      });
+      const payload = { page: p, limit: l, denom };
+      if (overrideStart && overrideEnd) {
+        const hasTime = overrideStart.includes('T') || overrideEnd.includes('T');
+        if (hasTime) { payload.start = overrideStart; payload.end = overrideEnd; }
+        else { payload.startDate = overrideStart; payload.endDate = overrideEnd; }
+      } else {
+        payload.startDate = dateRange.start;
+        payload.endDate = dateRange.end;
+      }
+      const res = await fetchBuildersTable('hourly', payload);
+      setHourlyTable({ rows: res.rows || [], total: res.total || 0, page: p, limit: l });
       setTableUpdateTime(prev => ({ ...prev, hourly: new Date() }));
     } catch (error) {
       console.error('Failed to load hourly table:', error);
     }
-  }, [dateRange.start, dateRange.end, denom, hourlyTable.page, hourlyTable.limit]);
+  }, [dateRange.start, dateRange.end, denom]);
+
+
 
   const loadCustom = useCallback(async (p = 1, l = DEFAULT_PAGE_SIZE) => {
     if (!tableTimeRangeUTC.start || !tableTimeRangeUTC.end) return;
@@ -144,25 +143,39 @@ function BlockProduction() {
     }
   }, [dateRange.start, dateRange.end]);
 
+
+  const queryResultsForDay = useCallback(async () => {
+    if (!resultsDate) return;
+    const fmt = 'YYYY-MM-DD HH:mm';
+    const startUtc = dayjs.tz(`${resultsDate} 00:00`, fmt, timezone).utc().toISOString();
+    const endUtc = dayjs.tz(`${resultsDate} 23:59`, fmt, timezone).utc().toISOString();
+
+    setResultsDailyPage(1);
+    setResultsHourlyPage(1);
+
+    await Promise.all([
+      loadDaily(1, dailyTable.limit, startUtc, endUtc),
+      loadHourly(1, hourlyTable.limit, startUtc, endUtc),
+    ]);
+  }, [resultsDate, timezone, loadDaily, loadHourly, dailyTable.limit, hourlyTable.limit]);
+
+
   const loadAllData = async () => {
     setLoading(true);
     try {
-      await Promise.all([
-        loadStats(),
-        loadDaily(1, dailyTable.limit),
-        loadHourly(1, hourlyTable.limit)
-      ]);
+      await loadStats();
+      await queryResultsForDay();
     } finally {
       setLoading(false);
     }
   };
 
+
   useEffect(() => {
     if (denom) {
-      loadDaily();
-      loadHourly();
+      queryResultsForDay();
     }
-  }, [denom, loadDaily, loadHourly]);
+  }, [denom]);
 
 
   useEffect(() => {
@@ -208,11 +221,20 @@ function BlockProduction() {
   const getTimeAgo = (date) => {
     if (!date) return '';
     const now = new Date();
-    const diff = Math.floor((now - date) / 1000); 
+    const diff = Math.floor((now - date) / 1000);
     if (diff < 60) return 'Just now';
     if (diff < 3600) return `${Math.floor(diff / 60)} min`;
     if (diff < 86400) return `${Math.floor(diff / 3600)} hr`;
     return `${Math.floor(diff / 86400)} days`;
+  };
+
+
+  const setMonthPreset = (preset) => {
+    const now = dayjs().utc();
+    const target = preset === 'prev' ? now.subtract(1, 'month') : now;
+    const start = target.startOf('month').format('YYYY-MM-DD');
+    const end = (preset === 'current' ? now : target.endOf('month')).format('YYYY-MM-DD');
+    setDateRange({ start, end });
   };
 
   const compactRangeLabel = (start, end) => {
@@ -222,23 +244,61 @@ function BlockProduction() {
     const fmt = (ms, opts) => new Intl.DateTimeFormat('en-US', { ...opts, timeZone: timezone }).format(ms);
 
     if (start === end) {
-      return fmt(sMs, { year:'numeric', month:'short', day:'numeric' });
+      return fmt(sMs, { year: 'numeric', month: 'short', day: 'numeric' });
     }
-    if (start.slice(0,7) === end.slice(0,7)) {
-      return `${fmt(sMs, { month:'short', day:'numeric' })}–${fmt(eMs, { month:'short', day:'numeric', year:'numeric' })}`;
+    if (start.slice(0, 7) === end.slice(0, 7)) {
+      return `${fmt(sMs, { month: 'short', day: 'numeric' })}–${fmt(eMs, { month: 'short', day: 'numeric', year: 'numeric' })}`;
     }
-    return `${fmt(sMs, { year:'numeric', month:'short', day:'numeric' })} – ${fmt(eMs, { year:'numeric', month:'short', day:'numeric' })}`;
+    return `${fmt(sMs, { year: 'numeric', month: 'short', day: 'numeric' })} – ${fmt(eMs, { year: 'numeric', month: 'short', day: 'numeric' })}`;
   };
+
 
   const renderCards = (interval, loadFunc, customTableData = null, setCustomTableData = null, customUpdateTime = null) => {
     const isHourly = interval === 'hourly';
     const isCustom = customTableData !== null;
-    const tableData = isCustom 
-      ? customTableData 
-      : (isHourly ? hourlyTable : dailyTable);
-    const updateTime = isCustom
-      ? customUpdateTime
-      : tableUpdateTime;
+    const tableData = isCustom ? customTableData : (isHourly ? hourlyTable : dailyTable);
+    const updateTime = isCustom ? customUpdateTime : tableUpdateTime;
+
+    let overrideStart = null;
+    let overrideEnd = null;
+    if (!isCustom && resultsDate) {
+      const fmt = 'YYYY-MM-DD HH:mm';
+      overrideStart = dayjs.tz(`${resultsDate} 00:00`, fmt, timezone).utc().toISOString();
+      overrideEnd = dayjs.tz(`${resultsDate} 23:59`, fmt, timezone).utc().toISOString();
+    }
+
+    const callLoad = (page, pageSize) => {
+      if (overrideStart && overrideEnd) {
+        loadFunc(page, pageSize, overrideStart, overrideEnd);
+      } else {
+        loadFunc(page, pageSize);
+      }
+    };
+
+    const currentPage = isCustom
+      ? tableData.page
+      : (isHourly ? resultsHourlyPage : resultsDailyPage);
+
+    const setCurrentPage = (page) => {
+      if (!isCustom) {
+        if (isHourly) setResultsHourlyPage(page);
+        else setResultsDailyPage(page);
+      } else if (setCustomTableData) {
+        setCustomTableData(prev => ({ ...prev, page }));
+      }
+    };
+
+    const setCurrentPageAndSize = (page, size) => {
+      if (!isCustom) {
+        if (isHourly) {
+          setResultsHourlyPage(page);
+        } else {
+          setResultsDailyPage(page);
+        }
+      } else if (setCustomTableData) {
+        setCustomTableData(prev => ({ ...prev, page, limit: size }));
+      }
+    };
 
     return (
       <div>
@@ -249,8 +309,8 @@ function BlockProduction() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {tableData.rows.map((r, i) => {
             const dateStr = formatBlockTime(
-              r.block_date.includes('T') || r.block_date.endsWith('Z') ? r.block_date : r.block_date.replace(' ', 'T') + 'Z', 
-              timezone, 
+              r.block_date.includes('T') || r.block_date.endsWith('Z') ? r.block_date : r.block_date.replace(' ', 'T') + 'Z',
+              timezone,
               r.block_date.includes(':') ? 'full' : 'date'
             );
             const ms = Math.max(0, Math.min(100, Number(r.market_share || 0)));
@@ -264,7 +324,7 @@ function BlockProduction() {
                   <Progress
                     type="circle"
                     percent={+ms.toFixed(1)}
-                    width={56}
+                    size={56}
                     strokeColor="#F3BA2F"
                     format={(p) => `${(p ?? 0).toFixed(1)}%`}
                   />
@@ -283,10 +343,7 @@ function BlockProduction() {
 
                 <div className="mt-4">
                   <div className="w-full h-2 bg-gray-100 rounded">
-                    <div
-                      className="h-2 rounded bg-yellow-400 transition-all duration-300"
-                      style={{ width: `${ms}%` }}
-                    />
+                    <div className="h-2 rounded bg-yellow-400 transition-all duration-300" style={{ width: `${ms}%` }} />
                   </div>
                 </div>
               </div>
@@ -297,32 +354,32 @@ function BlockProduction() {
         <div className="mt-4">
           <Pagination
             size="small"
-            current={tableData.page}
+            current={currentPage}
             pageSize={tableData.limit}
             total={tableData.total}
             showSizeChanger
             pageSizeOptions={PAGE_SIZE_OPTIONS}
             showTotal={(t, range) => `${range[0]}-${range[1]} of ${t}`}
             onChange={(page, pageSize) => {
-              loadFunc(page, pageSize);
-              if (isCustom && setCustomTableData) {
-                setCustomTableData(prev => ({ ...prev, page, limit: pageSize }));
-              }
+              setCurrentPage(page);
+              callLoad(page, pageSize);
+            }}
+            onShowSizeChange={(_, pageSize) => {
+              setCurrentPageAndSize(1, pageSize);
+              callLoad(1, pageSize);
             }}
           />
         </div>
 
         {updateTime && updateTime[isHourly ? 'hourly' : 'daily'] && (
-          <div
-            className="mt-4 text-right text-xs text-gray-400"
-            title={`Last Updated: ${updateTime[isHourly ? 'hourly' : 'daily'].toLocaleString()}`}
-          >
+          <div className="mt-4 text-right text-xs text-gray-400" title={`Last Updated: ${updateTime[isHourly ? 'hourly' : 'daily'].toLocaleString()}`}>
             {getTimeAgo(updateTime[isHourly ? 'hourly' : 'daily'])}
           </div>
         )}
       </div>
     );
   };
+
 
   const resetCustomRange = () => {
     setTableTimeRange({ start: '', end: '' });
@@ -334,8 +391,57 @@ function BlockProduction() {
     setDateRange({ start, end });
   };
 
+
+
   const resultTabs = [
-    { key: 'daily', label: 'Daily', children: renderCards('daily', loadDaily) },
+    {
+      key: 'daily',
+      label: 'Daily',
+      children: (() => {
+        const pieData = dailyTable.rows.map(r => ({
+          name: r.brand,
+          value: Number(r.blocks || 0)
+        }));
+        const pieOption = {
+          tooltip: {
+            trigger: 'item',
+            formatter: '{b}: {c} blocks ({d}%)'
+          },
+          series: [{
+            type: 'pie',
+            radius: ['30%', '70%'],
+            avoidLabelOverlap: false,
+            itemStyle: {
+              borderRadius: 10,
+              borderColor: '#fff',
+              borderWidth: 2
+            },
+            label: {
+              show: true,
+              position: 'outside',
+              formatter: '{b}\n{d}%'
+            },
+            emphasis: {
+              label: {
+                show: true,
+                fontSize: 16,
+                fontWeight: 'bold'
+              }
+            },
+            data: pieData
+          }]
+        };
+        return (
+          <div>
+            {pieData.length > 0 ? (
+              <ReactECharts option={pieOption} style={{ height: '400px' }} />
+            ) : (
+              <div className="text-center text-gray-500 py-8">No data available</div>
+            )}
+          </div>
+        );
+      })()
+    },
     { key: 'hourly', label: 'Hourly', children: renderCards('hourly', loadHourly) }
   ];
   if (tableTimeRangeUTC.start && tableTimeRangeUTC.end) {
@@ -419,6 +525,10 @@ function BlockProduction() {
                 ></span>
                 Charts
               </h2>
+              <div className="flex gap-2">
+                <Button size="small" type="primary" onClick={() => setMonthPreset('current')}>This Month</Button>
+                <Button size="small" onClick={() => setMonthPreset('prev')}>Last Month</Button>
+              </div>
               <Tabs
                 activeKey={activeChartTab}
                 onChange={(key) => {
@@ -428,18 +538,6 @@ function BlockProduction() {
                 destroyInactiveTabPane={false}
                 animated={false}
                 items={[
-                  {
-                    key: 'pct',
-                    label: 'MEV Block PCT',
-                    children: (
-                      <ProductionPctChart
-                        startDate={dateRange.start}
-                        endDate={dateRange.end}
-                        interval="daily"
-                        height={360}
-                      />
-                    )
-                  },
                   {
                     key: 'share',
                     label: 'Market Share',
@@ -478,6 +576,13 @@ function BlockProduction() {
               </h2>
 
               <div className="flex flex-wrap items-center gap-3">
+                <DatePicker
+                  size="small"
+                  value={resultsDate ? dayjs(resultsDate) : null}
+                  onChange={(date) => setResultsDate(date ? date.format('YYYY-MM-DD') : null)}
+                  format="YYYY-MM-DD"
+                />
+                <Button size="small" onClick={queryResultsForDay}>QUERY</Button>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-600">Denominator</span>
                   <Select

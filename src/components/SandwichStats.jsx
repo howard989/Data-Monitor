@@ -157,10 +157,19 @@ const SandwichStats = () => {
     }
   };
 
+  // const loadBuilderStats = async (name, startDate = null, endDate = null) => {
+  //   const { data } = await fetchSandwichStats(name || null, startDate, endDate);
+  //   setBuilderStats(data || null);
+  // };
   const loadBuilderStats = async (name, startDate = null, endDate = null) => {
-    const { data } = await fetchSandwichStats(name || null, startDate, endDate);
+    const { data } = await fetchSandwichStats(name || null, startDate, endDate, {
+      bundleFilter,
+      amountRange,
+      frontrunRouter,
+    });
     setBuilderStats(data || null);
   };
+  
 
   const loadBuilderSandwiches = async (builder, page, startDate = null, endDate = null) => {
     setBuilderLoading(true);
@@ -484,6 +493,16 @@ const SandwichStats = () => {
     fetchStats(dateRange.start, dateRange.end);
   }, [bundleFilter, amountRange.min, amountRange.max, frontrunRouter, isPaused]);
 
+  // useEffect(() => {
+  //   if (!authToken) return;
+  //   if (!selectedBuilder) {
+  //     setBuilderStats(null);
+  //     return;
+  //   }
+  //   if (isPaused) return;
+  //   loadBuilderStats(selectedBuilder, dateRange.start, dateRange.end);
+  // }, [selectedBuilder, authToken, dateRange.start, dateRange.end, isPaused]);
+
   useEffect(() => {
     if (!authToken) return;
     if (!selectedBuilder) {
@@ -492,7 +511,18 @@ const SandwichStats = () => {
     }
     if (isPaused) return;
     loadBuilderStats(selectedBuilder, dateRange.start, dateRange.end);
-  }, [selectedBuilder, authToken, dateRange.start, dateRange.end, isPaused]);
+  }, [
+    selectedBuilder,
+    authToken,
+    dateRange.start,
+    dateRange.end,
+    isPaused,
+    bundleFilter,
+    amountRange.min,
+    amountRange.max,
+    frontrunRouter
+  ]);
+  
 
 
   const [hasSearched, setHasSearched] = useState(false);

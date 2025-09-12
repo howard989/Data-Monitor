@@ -1,11 +1,10 @@
 import { authFetch } from './apiClient';
 
-// const API_URL = 'http://localhost:3001';
-
-const API_URL = 'http://15.204.163.45:8192';  
+const API_URL = '/api'; 
 
 const getAuthHeaders = () => {
-  const token = localStorage.getItem('token');
+  // const token = localStorage.getItem('token');
+  const token = localStorage.getItem('authToken');
   return {
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${token}`
@@ -14,7 +13,8 @@ const getAuthHeaders = () => {
 
 export const fetchSandwichOverview = async (limit = 1000) => {
   try {
-    const response = await fetch(`${API_URL}/api/sandwich/overview?limit=${limit}`, {
+    // const response = await fetch(`${API_URL}/api/sandwich/overview?limit=${limit}`, {
+      const response = await fetch(`${API_URL}/sandwich/overview?limit=${limit}`, {
       method: 'GET',
       headers: getAuthHeaders()
     });
@@ -33,7 +33,8 @@ export const fetchSandwichOverview = async (limit = 1000) => {
 
 export const fetchSandwichBlocks = async (limit = 100, offset = 0) => {
   try {
-    const response = await fetch(`${API_URL}/api/sandwich/blocks?limit=${limit}&offset=${offset}`, {
+    // const response = await fetch(`${API_URL}/api/sandwich/blocks?limit=${limit}&offset=${offset}`, {
+      const response = await fetch(`${API_URL}/sandwich/blocks?limit=${limit}&offset=${offset}`, {
       method: 'GET',
       headers: getAuthHeaders()
     });
@@ -52,7 +53,8 @@ export const fetchSandwichBlocks = async (limit = 100, offset = 0) => {
 
 export const fetchHourlyStats = async (hours = 24) => {
   try {
-    const response = await fetch(`${API_URL}/api/sandwich/hourly?hours=${hours}`, {
+    // const response = await fetch(`${API_URL}/api/sandwich/hourly?hours=${hours}`, {
+      const response = await fetch(`${API_URL}/sandwich/hourly?hours=${hours}`, {
       method: 'GET',
       headers: getAuthHeaders()
     });
@@ -71,7 +73,8 @@ export const fetchHourlyStats = async (hours = 24) => {
 
 
 export const fetchAttackByTx = async (hash) => {
-  const res = await authFetch(`${API_URL}/api/sandwich/by-tx/${hash.toLowerCase()}`, 
+  // const res = await authFetch(`${API_URL}/api/sandwich/by-tx/${hash.toLowerCase()}`, 
+  const res = await authFetch(`${API_URL}/sandwich/by-tx/${hash.toLowerCase()}`, 
     { method: 'GET' }
   );
   if (!res.ok) {
@@ -81,7 +84,8 @@ export const fetchAttackByTx = async (hash) => {
 };
 
 export const fetchAttacksByBlock = async (blockNumber) => {
-  const res = await authFetch(`${API_URL}/api/sandwich/by-block/${blockNumber}`, 
+  // const res = await authFetch(`${API_URL}/api/sandwich/by-block/${blockNumber}`, 
+  const res = await authFetch(`${API_URL}/sandwich/by-block/${blockNumber}`,
     { method: 'GET' }
   );
   if (!res.ok) {
@@ -92,7 +96,8 @@ export const fetchAttacksByBlock = async (blockNumber) => {
 
 
 export const fetchBuilderList = async () => {
-  const res = await authFetch(`${API_URL}/api/sandwich/builders`, { method: 'GET' });
+  // const res = await authFetch(`${API_URL}/api/sandwich/builders`, { method: 'GET' });
+  const res = await authFetch(`${API_URL}/sandwich/builders`, { method: 'GET' });
   
   if (!res.ok) {
     throw new Error('Failed to fetch builders');
@@ -102,7 +107,8 @@ export const fetchBuilderList = async () => {
 };
 
 export const fetchEarliestBlock = async () => {
-  const res = await authFetch(`${API_URL}/api/sandwich/earliest-block`, { method: 'GET' });
+  // const res = await authFetch(`${API_URL}/api/sandwich/earliest-block`, { method: 'GET' });
+  const res = await authFetch(`${API_URL}/sandwich/earliest-block`, { method: 'GET' });
   
   if (!res.ok) {
     throw new Error('Failed to fetch earliest block');
@@ -110,26 +116,56 @@ export const fetchEarliestBlock = async () => {
 
   return res.json();
 };
-export const fetchSandwichStats = async (builderName, startDate = null, endDate = null) => {
-  let url = builderName
-    ? `${API_URL}/api/sandwich/stats?builder=${encodeURIComponent(builderName)}`
-    : `${API_URL}/api/sandwich/stats`;
-  
+
+export const fetchSandwichStats = async (builderName, startDate = null, endDate = null, opts = {}) => {
+  const params = new URLSearchParams();
+
+  if (builderName) params.append('builder', builderName);
   if (startDate && endDate) {
-    url += `${url.includes('?') ? '&' : '?'}startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`;
+    params.append('startDate', startDate);
+    params.append('endDate', endDate);
+  }
+  if (opts.bundleFilter && opts.bundleFilter !== 'all') {
+    params.append('bundleFilter', opts.bundleFilter);
+  }
+  if (opts.amountRange) {
+    if (opts.amountRange.min) params.append('amountMin', opts.amountRange.min);
+    if (opts.amountRange.max) params.append('amountMax', opts.amountRange.max);
+  }
+  if (opts.frontrunRouter && opts.frontrunRouter !== 'all') {
+    params.append('frontrunRouter', opts.frontrunRouter);
   }
 
+  const url = `${API_URL}/sandwich/stats?${params.toString()}`;
   const res = await authFetch(url, { method: 'GET' });
-
-  if (!res.ok) {
-    throw new Error('Failed to fetch stats');
-  }
-
-  return res.json(); 
+  if (!res.ok) throw new Error('Failed to fetch stats');
+  return res.json();
 };
 
+
+// export const fetchSandwichStats = async (builderName, startDate = null, endDate = null) => {
+//   let url = builderName
+//     // ? `${API_URL}/api/sandwich/stats?builder=${encodeURIComponent(builderName)}`
+//     // : `${API_URL}/api/sandwich/stats`;
+//     ? `${API_URL}/sandwich/stats?builder=${encodeURIComponent(builderName)}`
+//     : `${API_URL}/sandwich/stats`;
+  
+//   if (startDate && endDate) {
+//     url += `${url.includes('?') ? '&' : '?'}startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`;
+//   }
+
+//   const res = await authFetch(url, { method: 'GET' });
+
+//   if (!res.ok) {
+//     throw new Error('Failed to fetch stats');
+//   }
+
+//   return res.json(); 
+// };
+
 export const fetchBuilderSandwiches = async (builder, page = 1, limit = 50, startDate = null, endDate = null) => {
-  let url = `${API_URL}/api/sandwich/builder-sandwiches?builder=${encodeURIComponent(builder)}&page=${page}&limit=${limit}`;
+  // let url = `${API_URL}/api/sandwich/builder-sandwiches?builder=${encodeURIComponent(builder)}&page=${page}&limit=${limit}`;
+  let url = `${API_URL}/sandwich/builder-sandwiches?builder=${encodeURIComponent(builder)}&page=${page}&limit=${limit}`;
   
   if (startDate && endDate) {
     url += `&startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`;
@@ -150,7 +186,8 @@ export const fetchSandwichSearch = async (params = {}) => {
   for (const [k, v] of Object.entries(params)) {
     if (v !== undefined && v !== null && v !== '') qs.append(k, String(v));
   }
-  const url = `${API_URL}/api/sandwich/search?${qs.toString()}`;
+  // const url = `${API_URL}/api/sandwich/search?${qs.toString()}`;
+  const url = `${API_URL}/sandwich/search?${qs.toString()}`;
   const res = await authFetch(url, { method: 'GET' });
   if (!res.ok) throw new Error('Failed to search sandwiches');
   return res.json();
@@ -192,7 +229,8 @@ export const fetchChartData = async (
   if (snapshotBlock != null) 
     params.append('snapshotBlock', String(snapshotBlock));
   
-  const url = `${API_URL}/api/sandwich/chart-data?${params.toString()}`;
+  // const url = `${API_URL}/api/sandwich/chart-data?${params.toString()}`;
+  const url = `${API_URL}/sandwich/chart-data?${params.toString()}`;
 
   const res = await authFetch(url, { method: 'GET' });
 
@@ -203,7 +241,8 @@ export const fetchChartData = async (
 };
 
 export const clearCache = async () => {
-  const res = await authFetch(`${API_URL}/api/sandwich/clear-cache`, {
+  // const res = await authFetch(`${API_URL}/api/sandwich/clear-cache`, {
+    const res = await authFetch(`${API_URL}/sandwich/clear-cache`, {
     method: 'POST',
     headers: getAuthHeaders()
   });
