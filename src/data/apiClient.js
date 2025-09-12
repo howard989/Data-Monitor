@@ -1,5 +1,4 @@
-// const API_URL = 'http://localhost:3001';
-const API_URL = 'http://15.204.163.45:8192';
+const API_URL = '/api'; 
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -11,7 +10,8 @@ class HttpError extends Error {
 let refreshing = null;
 
 async function refreshAccessToken() {
-  const r = await fetch(`${API_URL}/api/auth/refresh`, { 
+  // const r = await fetch(`${API_URL}/api/auth/refresh`, { 
+    const r = await fetch(`${API_URL}/auth/refresh`, { 
     method: 'POST', 
     credentials: 'include' 
   });
@@ -22,6 +22,15 @@ async function refreshAccessToken() {
   
   localStorage.setItem('authToken', token);
   return token;
+}
+
+function forceLogout() {
+  try { 
+    localStorage.removeItem('authToken'); 
+  } catch {}
+  if (typeof window !== 'undefined') {
+    window.location.assign('/login');
+  }
 }
 
 export async function authFetch(input, init = {}) {
@@ -44,11 +53,31 @@ export async function authFetch(input, init = {}) {
     if (!retryHeaders.has('Content-Type')) retryHeaders.set('Content-Type', 'application/json');
     
     res = await fetch(input, { ...init, headers: retryHeaders, credentials: 'include' });
-    if (res.status === 401) throw new HttpError(401);
+    if (res.status === 401) {
+      forceLogout();
+      throw new HttpError(401);
+    }
     return res;
   } catch {
+    forceLogout();
     throw new HttpError(401);
   }
+}
+
+if (typeof window !== 'undefined') {
+  const tryProactiveRefresh = () => {
+    const t = localStorage.getItem('authToken');
+    if (!t) return;
+    refreshAccessToken().catch(() => {});
+  };
+  
+  window.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      tryProactiveRefresh();
+    }
+  });
+  
+  window.addEventListener('online', tryProactiveRefresh);
 }
 
 export { API_URL };

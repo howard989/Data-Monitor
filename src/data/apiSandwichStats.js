@@ -1,22 +1,11 @@
 import { authFetch } from './apiClient';
 
-const API_URL = '/api'; 
-
-const getAuthHeaders = () => {
-  // const token = localStorage.getItem('token');
-  const token = localStorage.getItem('authToken');
-  return {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`
-  };
-};
+const API_URL = '/api';
 
 export const fetchSandwichOverview = async (limit = 1000) => {
   try {
-    // const response = await fetch(`${API_URL}/api/sandwich/overview?limit=${limit}`, {
-      const response = await fetch(`${API_URL}/sandwich/overview?limit=${limit}`, {
-      method: 'GET',
-      headers: getAuthHeaders()
+    const response = await authFetch(`${API_URL}/sandwich/overview?limit=${limit}`, {
+      method: 'GET'
     });
     
     if (!response.ok) {
@@ -33,10 +22,8 @@ export const fetchSandwichOverview = async (limit = 1000) => {
 
 export const fetchSandwichBlocks = async (limit = 100, offset = 0) => {
   try {
-    // const response = await fetch(`${API_URL}/api/sandwich/blocks?limit=${limit}&offset=${offset}`, {
-      const response = await fetch(`${API_URL}/sandwich/blocks?limit=${limit}&offset=${offset}`, {
-      method: 'GET',
-      headers: getAuthHeaders()
+    const response = await authFetch(`${API_URL}/sandwich/blocks?limit=${limit}&offset=${offset}`, {
+      method: 'GET'
     });
     
     if (!response.ok) {
@@ -53,10 +40,8 @@ export const fetchSandwichBlocks = async (limit = 100, offset = 0) => {
 
 export const fetchHourlyStats = async (hours = 24) => {
   try {
-    // const response = await fetch(`${API_URL}/api/sandwich/hourly?hours=${hours}`, {
-      const response = await fetch(`${API_URL}/sandwich/hourly?hours=${hours}`, {
-      method: 'GET',
-      headers: getAuthHeaders()
+    const response = await authFetch(`${API_URL}/sandwich/hourly?hours=${hours}`, {
+      method: 'GET'
     });
     
     if (!response.ok) {
@@ -243,8 +228,7 @@ export const fetchChartData = async (
 export const clearCache = async () => {
   // const res = await authFetch(`${API_URL}/api/sandwich/clear-cache`, {
     const res = await authFetch(`${API_URL}/sandwich/clear-cache`, {
-    method: 'POST',
-    headers: getAuthHeaders()
+    method: 'POST'
   });
   
   if (!res.ok) {

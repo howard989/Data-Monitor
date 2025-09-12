@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useContext, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useContext, useCallback, useMemo, useRef } from 'react';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import { useNavigate, Link } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { usePause } from '../context/PauseContext';
@@ -37,6 +39,7 @@ const getTokenSymbol = (address) => {
 };
 
 const SandwichStats = () => {
+  const reportRef = useRef(null);
   const [stats, setStats] = useState(null);
   const [recentBlocks, setRecentBlocks] = useState([]);
 
@@ -365,6 +368,169 @@ const SandwichStats = () => {
     setHasSearched(false);
   };
 
+  const handleExportCSV = useCallback(async () => {
+    // if (!dateRange.start || !dateRange.end) {
+    //   alert('Please set a Date Range before exporting CSV.');
+    //   return;
+    // }
+    
+    const escapeCSV = (v) => {
+      const s = String(v ?? '');
+      if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+      return s;
+    };
+    const download = (content, filename, mime='text/csv;charset=utf-8;') => {
+      const blob = new Blob([content], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+    };
+
+    const rangeLabel = (dateRange?.start && dateRange?.end)
+      ? `${dateRange.start}_to_${dateRange.end}`
+      : 'current_range';
+
+    if (selectedBuilder) {
+      const header = [
+        'block_number','time','front_tx','victim_tx','backruns_count','backruns_joined',
+        'validator','profit_wei','profit_token','is_bundle','bundle_size'
+      ];
+      const rows = [];
+      let page = 1;
+      const MAX_PAGES_TO_EXPORT = 20;
+      let totalPages = 1;
+
+      try {
+        const first = await fetchBuilderSandwiches(selectedBuilder, 1, 50, builderDateRange.start || dateRange.start || null, builderDateRange.end || dateRange.end || null);
+        const list = first?.data || [];
+        totalPages = Math.min(first?.totalPages || 1, 100);
+        list.forEach(s => {
+          rows.push([
+            s.block_number,
+            formatBlockTime(s.block_time_ms || s.block_time, timezone, 'full'),
+            s.front_tx_hash,
+            s.victim_tx_hash,
+            (s.backrun_txes || []).length,
+            (s.backrun_txes || []).join('|'),
+            s.validator_name || '',
+            s.profit_wei || '',
+            s.profit_token || '',
+            s.is_bundle ? 1 : 0,
+            s.bundle_size || 0
+          ]);
+        });
+
+        page = 2;
+        while (page <= totalPages && page <= MAX_PAGES_TO_EXPORT) {
+          const res = await fetchBuilderSandwiches(selectedBuilder, page, 50, builderDateRange.start || dateRange.start || null, builderDateRange.end || dateRange.end || null);
+          const arr = res?.data || [];
+          arr.forEach(s => {
+            rows.push([
+              s.block_number,
+              formatBlockTime(s.block_time_ms || s.block_time, timezone, 'full'),
+              s.front_tx_hash,
+              s.victim_tx_hash,
+              (s.backrun_txes || []).length,
+              (s.backrun_txes || []).join('|'),
+              s.validator_name || '',
+              s.profit_wei || '',
+              s.profit_token || '',
+              s.is_bundle ? 1 : 0,
+              s.bundle_size || 0
+            ]);
+          });
+          page++;
+        }
+      } catch (e) {
+        console.error('Export CSV error:', e);
+      }
+
+      const csv = [header.map(escapeCSV).join(',')]
+        .concat(rows.map(r => r.map(escapeCSV).join(',')))
+        .join('\n');
+
+      const filename = `sandwich_${selectedBuilder}_${rangeLabel}.csv`;
+      download(csv, filename);
+      return;
+    }
+
+    const header = [
+      'builder','blocks','sandwich_blocks','sandwich_percentage','mined_rate',
+      'stable_usd_total','wbnb_wei_total','avg_profit_usd_per_tx'
+    ];
+    const rows = (stats?.breakdown_by_builder || [])
+      .slice(0, 100)
+      .map(b => {
+        const stable = Number(b.stable_usd_total || 0);
+        const wbnbWei = Number(b.wbnb_wei_total || 0);
+        const bnbUsdNum = Number(bnbUsdt || 0);
+        const bnbUsdPart = bnbUsdNum > 0 ? (wbnbWei / 1e18) * bnbUsdNum : 0;
+        const totalUsd = stable + bnbUsdPart;
+
+        const count = (b.profit_breakdown || []).reduce((s, it) => s + (it.count || 0), 0);
+        const avg = count > 0 ? totalUsd / count : 0;
+
+        return [
+          b.builder_name || '',
+          Number(b.blocks || 0),
+          Number(b.sandwich_blocks || 0),
+          Number(b.sandwich_percentage || 0),
+          Number(b.mined_rate || 0),
+          stable.toFixed(2),
+          String(b.wbnb_wei_total || '0'),
+          avg.toFixed(4)
+        ];
+      });
+
+    const csv = [header.map(escapeCSV).join(',')]
+      .concat(rows.map(r => r.map(escapeCSV).join(',')))
+      .join('\n');
+
+    const filename = `sandwich_builders_${rangeLabel}.csv`;
+    download(csv, filename);
+  }, [selectedBuilder, stats, dateRange.start, dateRange.end, builderDateRange.start, builderDateRange.end, bnbUsdt, timezone]);
+
+  const handleExportPDF = useCallback(async () => {
+    if (!reportRef.current) return;
+    const node = reportRef.current;
+
+    const canvas = await html2canvas(node, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      windowWidth: document.documentElement.scrollWidth,
+      windowHeight: document.documentElement.scrollHeight
+    });
+
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF('p', 'pt', 'a4');
+
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pageWidth;
+    const imgHeight = canvas.height * (imgWidth / canvas.width);
+
+    let heightLeft = imgHeight;
+    let position = 0;
+
+    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+
+    while (heightLeft > 0) {
+      position = heightLeft - imgHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+    }
+
+    const who = selectedBuilder ? selectedBuilder : 'all_builders';
+    const rangeLabel = (dateRange?.start && dateRange?.end)
+      ? `${dateRange.start}_to_${dateRange.end}`
+      : 'current_range';
+    pdf.save(`sandwich_report_${who}_${rangeLabel}.pdf`);
+  }, [reportRef, selectedBuilder, dateRange.start, dateRange.end]);
+
 
   const doSearch = useCallback(async (page = 1, filters = searchFilters, pageSizeOverride = null) => {
     if (!filters) return;
@@ -689,10 +855,15 @@ const SandwichStats = () => {
               <div className={`${isMobile ? 'w-[180px]' : ''}`}>
                 <TimezoneSelector />
               </div>
+              <div className={`flex ${isMobile ? 'w-full justify-end' : 'items-center'} gap-2`}>
+                {/* <Button onClick={handleExportCSV}>Export CSV</Button> */}
+                <Button type="primary" onClick={handleExportPDF}>Generate PDF</Button>
+              </div>
             </div>
           </div>
         </div>
 
+        <div ref={reportRef}>
         <div className="bg-[#FFFBEC] rounded-2xl p-6 md:p-8 mb-8">
           <div className="text-center">
             <h2 className={`${isMobile ? 'text-xl' : 'text-2xl'} font-semibold mb-4 text-[#F3BA2F]`}>
@@ -1093,6 +1264,35 @@ const SandwichStats = () => {
               <div className="text-xs text-gray-400 mt-1">
                 Blocks #{builderStats.earliest_block || 0} to #{builderStats.latest_block || 0}
               </div>
+              
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+                <div className="bg-white border border-gray-200 rounded-lg p-3">
+                  <div className="text-xs text-gray-500">Builder Blocks</div>
+                  <div className="text-lg font-semibold">{formatNumber(builderStats.total_blocks)}</div>
+                </div>
+                <div className="bg-white border border-gray-200 rounded-lg p-3">
+                  <div className="text-xs text-gray-500">Sandwich Rate</div>
+                  <div className="text-lg font-semibold">{builderStats.sandwich_percentage?.toFixed(2)}%</div>
+                </div>
+                <div className="bg-white border border-gray-200 rounded-lg p-3">
+                  <div className="text-xs text-gray-500">Attack Amount(USD)/tx</div>
+                  <div className="text-lg font-semibold">
+                    {(() => {
+                      const builderRow = (stats?.breakdown_by_builder || []).find(b => b.builder_name === selectedBuilder);
+                      return builderRow ? formatProfitUSD(calculateAvgProfitPerTx(builderRow)) : '-';
+                    })()}
+                  </div>
+                </div>
+                <div className="bg-white border border-gray-200 rounded-lg p-3">
+                  <div className="text-xs text-gray-500">Mined Rate</div>
+                  <div className="text-lg font-semibold">
+                    {(() => {
+                      const builderRow = (stats?.breakdown_by_builder || []).find(b => b.builder_name === selectedBuilder);
+                      return builderRow?.mined_rate ? `${Number(builderRow.mined_rate).toFixed(2)}%` : '-';
+                    })()}
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -1109,6 +1309,7 @@ const SandwichStats = () => {
             snapshotBlock={stats?.latest_block || null}
             allBuilders={builders}
           />
+        </div>
         </div>
 
 

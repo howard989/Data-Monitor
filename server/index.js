@@ -12,7 +12,7 @@ const cookieParser = require('cookie-parser');
 
 const app = express();
 // const port = 3001; //本地
-const port = 8192;
+const port = 8189;
 
 
 
@@ -26,14 +26,16 @@ const sandwichStatsHandler = require('./routes/sandwichStatsHandler');
 
 
 
-const corsOrigins = ['http://localhost:3000', 'http://15.204.163.45:8190'];
+
+app.set('trust proxy', 1);
 
 const SECRET_KEY = process.env.SECRET_KEY;
 const REFRESH_SECRET = process.env.REFRESH_SECRET || SECRET_KEY;
 
-app.use(cors({ origin: corsOrigins, credentials: true }));
 
-// app.use(cors());
+// const corsOrigins = ['http://localhost:3000'];
+// app.use(cors({ origin: corsOrigins, credentials: true }));
+
 app.use(express.json());
 app.use(cookieParser());
 
@@ -45,9 +47,15 @@ app.use(cookieParser());
 })();
 
 
-const cookieOptions = { httpOnly: true, sameSite: 'lax', secure: false, maxAge: 30 * 24 * 3600 * 1000 };
+const cookieOptions = { 
+    httpOnly: true, 
+    sameSite: 'lax', 
+    secure: true,    
+    maxAge: 30 * 24 * 3600 * 1000 
+  };
+  
 
-app.post('/login', async (req, res) => {
+  app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
 
     if (!username || !password) {
@@ -71,7 +79,7 @@ app.post('/login', async (req, res) => {
             return res.status(400).json({ message: 'Password incorrect' });
         }
 
-        const access = jwt.sign({ username }, SECRET_KEY, { expiresIn: '2h' });
+        const access = jwt.sign({ username }, SECRET_KEY, { expiresIn: '12h' });
         const refresh = jwt.sign({ username }, REFRESH_SECRET, { expiresIn: '30d' });
         res.cookie('rt', refresh, cookieOptions);
         res.json({ token: access });
@@ -87,7 +95,7 @@ app.post('/api/auth/refresh', async (req, res) => {
     if (!token) return res.status(401).json({ success: false });
     try {
       const payload = jwt.verify(token, REFRESH_SECRET);
-      const access = jwt.sign({ username: payload.username }, SECRET_KEY, { expiresIn: '2h' });
+      const access = jwt.sign({ username: payload.username }, SECRET_KEY, { expiresIn: '12h' });
       const refresh = jwt.sign({ username: payload.username }, REFRESH_SECRET, { expiresIn: '30d' });
       res.cookie('rt', refresh, cookieOptions);
       res.json({ success: true, token: access });
@@ -96,12 +104,12 @@ app.post('/api/auth/refresh', async (req, res) => {
     }
   });
 
-app.get('/protected', authMiddleware, (req, res) => {
+  app.get('/api/protected', authMiddleware, (req, res) => {
     res.json({ message: `Welcome, ${req.user.username}!` });
 });
 
 
-app.post('/secondary-login', async (req, res) => {
+app.post('/api/secondary-login', async (req, res) => {
     const { username, password } = req.body;
 
     try {
@@ -122,7 +130,7 @@ app.post('/secondary-login', async (req, res) => {
         const access = jwt.sign(
             { username: user.username, role: user.role },
             SECRET_KEY,
-            { expiresIn: '2h' }
+            { expiresIn: '12h' }
         );
         const refresh = jwt.sign(
             { username: user.username, role: user.role },
