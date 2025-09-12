@@ -562,7 +562,7 @@ function BlockProduction() {
               <div className={`${isMobile ? 'text-3xl' : 'text-4xl'} font-bold text-yellow-400 mb-2 text-center`}>
                 {stats ? formatNumber(stats.builder_blocks) : '—'}
               </div>
-              <div className="text-sm text-gray-600 font-medium text-center">MEV_Blocks_24H</div>
+              <div className="text-sm text-gray-600 font-medium text-center">MEV_Builder_Blocks</div>
               <div className="text-xs text-gray-400 mt-1 text-center">@bnbchain</div>
             </div>
             <div className="bg-white border border-gray-200 rounded-xl p-6 text-center">
