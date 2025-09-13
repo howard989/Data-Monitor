@@ -857,7 +857,7 @@ const SandwichStats = () => {
               </div>
               <div className={`flex ${isMobile ? 'w-full justify-end' : 'items-center'} gap-2`}>
                 {/* <Button onClick={handleExportCSV}>Export CSV</Button> */}
-                <Button type="primary" onClick={handleExportPDF}>Generate PDF</Button>
+                {/* <Button type="primary" onClick={handleExportPDF}>Generate PDF</Button> */}
               </div>
             </div>
           </div>
@@ -930,13 +930,14 @@ const SandwichStats = () => {
 
 
         <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 mb-8">
-          <h2 className="relative pl-3 text-base font-semibold text-gray-900 mb-4 leading-6">
-            <span
-              aria-hidden="true"
-              className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 bg-yellow-400"
-            ></span>
-            Builder Statistics & Filters
-          </h2>
+          <div data-html2canvas-ignore="true">
+            <h2 className="relative pl-3 text-base font-semibold text-gray-900 mb-4 leading-6">
+              <span
+                aria-hidden="true"
+                className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 bg-yellow-400"
+              ></span>
+              Builder Statistics & Filters
+            </h2>
 
           <div className={`flex ${isMobile ? 'flex-col' : 'sm:flex-row sm:items-center'} gap-2 sm:gap-3 mb-4`}>
             <label className="text-sm text-gray-600">Filter by Builder:</label>
@@ -1158,6 +1159,7 @@ const SandwichStats = () => {
                 Clear
               </Button>
             )}
+          </div>
           </div>
 
           {!selectedBuilder && stats && (
