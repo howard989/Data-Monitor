@@ -213,21 +213,7 @@ export default function RefundStatus() {
 
       {brandTabs}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
-        <div className="bg-white border border-gray-200 rounded-xl p-6 text-center">
-          <div className="text-3xl font-bold text-yellow-400 mb-2">
-            {summary && Number.isFinite(Number(summary.execution_ratio)) ? Number(summary.execution_ratio).toFixed(2) : '—'}
-            <span className="ml-1 text-base font-semibold text-gray-700">%</span>
-          </div>
-          <div className="text-sm text-gray-600 font-medium">backrun execution ratio</div>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-xl p-6 text-center">
-          <div className="text-3xl font-bold text-green-600 mb-2">
-            {summary && Number.isFinite(Number(summary.total_profit_bnb)) ? Number(summary.total_profit_bnb).toFixed(4) : '—'}
-            <span className="ml-1 text-base font-semibold text-gray-700">BNB</span>
-          </div>
-          <div className="text-sm text-gray-600 font-medium">backrun total profit (before burn)</div>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-8">
         <div className="bg-white border border-gray-200 rounded-xl p-6 text-center">
           <div className="text-3xl font-bold text-gray-900 mb-2">
             {summary && Number.isFinite(Number(summary.onchain_count)) ? formatNumber(summary.onchain_count) : '—'}
@@ -282,7 +268,8 @@ export default function RefundStatus() {
                   <th className="text-left py-2 px-3 text-gray-600">tx hash</th>
                   <th className="text-left py-2 px-3 text-gray-600">source</th>
                   <th className="text-left py-2 px-3 text-gray-600">blockNum</th>
-                  <th className="text-left py-2 px-3 text-gray-600">profit</th>
+                  {/* <th className="text-left py-2 px-3 text-gray-600">profit</th> */}
+                  <th className="text-left py-2 px-3 text-gray-600">rebate</th>
                   <th className="text-left py-2 px-3 text-gray-600">txIndex</th>
                   <th className="text-left py-2 px-3 text-gray-600">timestamp</th>
                 </tr>

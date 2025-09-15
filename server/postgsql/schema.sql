@@ -17,3 +17,15 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_block_overview_recent
 ON block_overview (block_number DESC)
 INCLUDE (has_sandwich, updated_at);
 
+
+
+ALTER TABLE public.internal_arb_tx
+  ALTER COLUMN profit_receiver DROP NOT NULL,
+  ALTER COLUMN profit_amount_wei DROP NOT NULL;
+
+
+CREATE INDEX IF NOT EXISTS idx_iarb_refund_type
+  ON public.internal_arb_tx (refund_type);
+  
+CREATE INDEX IF NOT EXISTS idx_iarb_router_refund_time
+  ON public.internal_arb_tx (router_address, refund_type, block_time DESC);
