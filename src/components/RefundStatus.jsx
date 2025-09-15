@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Button, Input, Tooltip, Select, Pagination } from 'antd';
+import { Button, Input, Tooltip, Select, Pagination, Tabs, Tag, message } from 'antd';
 import { SearchOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
@@ -18,7 +18,6 @@ const { Option } = Select;
 
 const toExplorerTx = (hash) => `https://bscscan.com/tx/${hash}`;
 const toExplorerBlock = (num) => `https://bscscan.com/block/${num}`;
-
 const formatNumber = (n) => new Intl.NumberFormat('en-US').format(Number(n || 0));
 const shortHash = (h) => (!h || h.length <= 12 ? h : `${h.slice(0, 6)}...${h.slice(-6)}`);
 const getTimeAgo = (date) => {
@@ -31,42 +30,61 @@ const getTimeAgo = (date) => {
   return `${Math.floor(diff / 86400)} days`;
 };
 
-async function fetchRefundSummary48({ start, end }) {
-  const qs = new URLSearchParams({ brand: '48club', start, end }).toString();
-  const res = await fetch(`/api/refund/summary?${qs}`);
-  if (!res.ok) throw new Error('bad');
-  const data = await res.json();
-  return {
-    execution_ratio: data?.execution_ratio ?? null,
-    total_profit_bnb: data?.total_profit_bnb ?? null,
-    onchain_count: data?.onchain_count ?? null,
-    rebate_bnb: data?.rebate_bnb ?? null
-  };
+function getToken() {
+  return localStorage.getItem('token') || localStorage.getItem('authToken') || '';
+}
+async function ensureToken() {
+  let t = getToken();
+  if (t) return t;
+  const r = await fetch('/api/auth/refresh', { method: 'POST' });
+  if (r.ok) {
+    const j = await r.json();
+    if (j?.token) {
+      localStorage.setItem('token', j.token);
+      localStorage.setItem('authToken', j.token);
+      return j.token;
+    }
+  }
+  throw new Error('no token');
+}
+async function authedFetch(url) {
+  const t = await ensureToken();
+  return fetch(url, { headers: { Authorization: `Bearer ${t}` } });
 }
 
-async function fetchRefundTx48({ start, end, page = 1, limit = 12, keyword = '' }) {
-  const qs = new URLSearchParams({
-    brand: '48club',
-    start,
-    end,
-    page: String(page),
-    limit: String(limit),
-    q: keyword || ''
-  }).toString();
-  const res = await fetch(`/api/refund/tx?${qs}`);
-  if (!res.ok) throw new Error('bad');
+async function fetchAllowedBrands() {
+  const res = await authedFetch(`/api/refund/brands`);
+  if (!res.ok) {
+    const text = await res.text();
+    console.error('Failed to fetch brands:', res.status, text);
+    throw new Error(`Failed to fetch brands: ${res.status}`);
+  }
   const data = await res.json();
-  return {
-    rows: Array.isArray(data?.rows) ? data.rows : [],
-    total: Number(data?.total ?? 0),
-    page,
-    limit
-  };
+  return { allowed: Array.isArray(data?.allowed) ? data.allowed : [], user: data?.user || '' };
+}
+async function fetchRefundSummary({ brand, start, end }) {
+  const qs = new URLSearchParams({ brand, start, end }).toString();
+  const res = await authedFetch(`/api/refund/summary?${qs}`);
+  if (!res.ok) {
+    const text = await res.text();
+    console.error('Failed to fetch summary:', res.status, text);
+    throw new Error(`Failed to fetch summary: ${res.status}`);
+  }
+  return await res.json();
+}
+async function fetchRefundTx({ brand, start, end, page = 1, limit = 12, keyword = '' }) {
+  const qs = new URLSearchParams({ brand, start, end, page: String(page), limit: String(limit), q: keyword || '' }).toString();
+  const res = await authedFetch(`/api/refund/tx?${qs}`);
+  if (!res.ok) {
+    const text = await res.text();
+    console.error('Failed to fetch tx:', res.status, text);
+    throw new Error(`Failed to fetch tx: ${res.status}`);
+  }
+  return await res.json();
 }
 
 export default function RefundStatus() {
   const { timezone, timezoneLabel } = useTimezone();
-
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     const check = () => setIsMobile(typeof window !== 'undefined' && window.innerWidth < 640);
@@ -75,31 +93,37 @@ export default function RefundStatus() {
     return () => window.removeEventListener('resize', check);
   }, []);
 
+  const [allowedBrands, setAllowedBrands] = useState([]);
+  const [brand, setBrand] = useState('');
+  const [who, setWho] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { allowed, user } = await fetchAllowedBrands();
+        setAllowedBrands(allowed || []);
+        setBrand((allowed || [])[0] || '');
+        setWho(user || '');
+      } catch {
+        setAllowedBrands([]);
+        setBrand('');
+        setWho('');
+        message.error('Auth failed');
+      }
+    })();
+  }, []);
+
   const [dateRange, setDateRange] = useState(() => {
     const now = dayjs().tz(timezone);
-    return {
-      start: now.startOf('month').format('YYYY-MM-DD HH:mm'),
-      end: now.endOf('day').format('YYYY-MM-DD HH:mm')
-    };
+    return { start: now.startOf('month').format('YYYY-MM-DD HH:mm'), end: now.endOf('day').format('YYYY-MM-DD HH:mm') };
   });
 
   const startUtc = useMemo(
-    () =>
-      dayjs
-        .tz(dateRange.start, 'YYYY-MM-DD HH:mm', timezone)
-        .startOf('minute')
-        .utc()
-        .format('YYYY-MM-DDTHH:mm:ss[Z]'),
+    () => dayjs.tz(dateRange.start, 'YYYY-MM-DD HH:mm', timezone).startOf('minute').utc().format('YYYY-MM-DDTHH:mm:ss[Z]'),
     [dateRange.start, timezone]
   );
-
   const endUtc = useMemo(
-    () =>
-      dayjs
-        .tz(dateRange.end, 'YYYY-MM-DD HH:mm', timezone)
-        .endOf('minute')
-        .utc()
-        .format('YYYY-MM-DDTHH:mm:ss[Z]'),
+    () => dayjs.tz(dateRange.end, 'YYYY-MM-DD HH:mm', timezone).endOf('minute').utc().format('YYYY-MM-DDTHH:mm:ss[Z]'),
     [dateRange.end, timezone]
   );
 
@@ -108,63 +132,55 @@ export default function RefundStatus() {
   const [table, setTable] = useState({ rows: [], total: 0, page: 1, limit: 12 });
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
 
-  const compactRangeLabel = useCallback(
-    (start, end) => {
-      if (!start || !end) return '';
-      const fmt = 'YYYY-MM-DD HH:mm';
-      const s = dayjs.tz(start, fmt, timezone);
-      const e = dayjs.tz(end, fmt, timezone);
-      if (s.isSame(e, 'day')) return s.format('MMM D, YYYY');
-      if (s.format('YYYY-MM') === e.format('YYYY-MM')) return `${s.format('MMM D')}–${e.format('MMM D, YYYY')}`;
-      return `${s.format('MMM D, YYYY')} – ${e.format('MMM D, YYYY')}`;
-    },
-    [timezone]
-  );
+  const compactRangeLabel = useCallback((start, end) => {
+    if (!start || !end) return '';
+    const fmt = 'YYYY-MM-DD HH:mm';
+    const s = dayjs.tz(start, fmt, timezone);
+    const e = dayjs.tz(end, fmt, timezone);
+    if (s.isSame(e, 'day')) return s.format('MMM D, YYYY');
+    if (s.format('YYYY-MM') === e.format('YYYY-MM')) return `${s.format('MMM D')}–${e.format('MMM D, YYYY')}`;
+    return `${s.format('MMM D, YYYY')} – ${e.format('MMM D, YYYY')}`;
+  }, [timezone]);
 
-  const quickSetRange = useCallback(
-    (days) => {
-      const end = dayjs().tz(timezone).endOf('day').format('YYYY-MM-DD HH:mm');
-      const start = dayjs().tz(timezone).subtract(days, 'day').startOf('day').format('YYYY-MM-DD HH:mm');
-      setDateRange({ start, end });
-    },
-    [timezone]
-  );
+  const quickSetRange = useCallback((days) => {
+    const end = dayjs().tz(timezone).endOf('day').format('YYYY-MM-DD HH:mm');
+    const start = dayjs().tz(timezone).subtract(days, 'day').startOf('day').format('YYYY-MM-DD HH:mm');
+    setDateRange({ start, end });
+  }, [timezone]);
 
   const loadSummary = useCallback(async () => {
-    try {
-      const s = await fetchRefundSummary48({ start: startUtc, end: endUtc });
-      setSummary(s);
-    } catch {
-      setSummary(null);
-    }
-  }, [startUtc, endUtc]);
+    if (!brand) return;
+    const s = await fetchRefundSummary({ brand, start: startUtc, end: endUtc });
+    setSummary(s);
+  }, [brand, startUtc, endUtc]);
 
-  const loadTable = useCallback(
-    async (p = table.page, l = table.limit, kw = keyword) => {
-      try {
-        const res = await fetchRefundTx48({ start: startUtc, end: endUtc, page: p, limit: l, keyword: kw });
-        setTable(res);
-      } catch {
-        setTable((prev) => ({ ...prev, rows: [], total: 0, page: 1 }));
-      }
-    },
-    [startUtc, endUtc]
-  );
+  const loadTable = useCallback(async (p = table.page, l = table.limit, kw = keyword) => {
+    if (!brand) return;
+    const r = await fetchRefundTx({ brand, start: startUtc, end: endUtc, page: p, limit: l, keyword: kw });
+    setTable({ rows: Array.isArray(r?.rows) ? r.rows : [], total: Number(r?.total ?? 0), page: p, limit: l });
+  }, [brand, startUtc, endUtc]);
 
   useEffect(() => {
+    if (!brand) return;
     (async () => {
       await Promise.all([loadSummary(), loadTable(1, table.limit, keyword)]);
       setTable((prev) => ({ ...prev, page: 1 }));
       setLastUpdatedAt(new Date());
     })();
-  }, [loadSummary, loadTable, table.limit]);
+  }, [brand, loadSummary, loadTable, table.limit]);
 
   useEffect(() => {
-    const h = setTimeout(() => {
-      loadTable(1, table.limit, keyword);
-    }, 400);
+    const h = setTimeout(() => { loadTable(1, table.limit, keyword); }, 400);
     return () => clearTimeout(h);
   }, [keyword, table.limit, loadTable]);
+
+  const isAdmin = String(who || '').toLowerCase() === 'admin';
+  const brandTabs = isAdmin && allowedBrands.length > 1 ? (
+    <Tabs activeKey={brand} onChange={(k) => setBrand(k)} items={allowedBrands.map((b) => ({
+      key: b,
+      label: b === 'binanceWallet' ? 'Binance' : b === 'pancakeswap' ? 'Pancake' : b === 'blink' ? 'Blink' : b === 'merkle' ? 'Merkle' : b
+    }))} />
+  ) : null;
 
   return (
     <div className={`min-h-screen watermark-container ${isMobile ? 'p-4' : 'p-8 mx-auto max-w-[1280px]'}`}>
@@ -174,24 +190,28 @@ export default function RefundStatus() {
           <span className="mx-2">/</span>
           <span>Refund Status</span>
         </nav>
-        <div className="text-sm text-gray-600">
-          Date Range: {compactRangeLabel(dateRange.start, dateRange.end)} ({timezoneLabel})
-        </div>
+        <div className="text-sm text-gray-600">Date Range: {compactRangeLabel(dateRange.start, dateRange.end)} ({timezoneLabel})</div>
       </div>
 
       <hr className="my-4 border-t border-gray-300" />
 
       <div className="flex items-start justify-between mb-3">
-        <h1 className={`${isMobile ? 'text-xl' : 'text-2xl md:text-3xl'} font-bold text-gray-800`}>Refund Status</h1>
-        <Button
-          onClick={async () => {
+        <div className="flex items-center gap-3">
+          <h1 className={`${isMobile ? 'text-xl' : 'text-2xl md:text-3xl'} font-bold text-gray-800`}>Refund Status</h1>
+          {summary?.since ? <Tag color="blue">{dayjs(summary.since).tz(timezone).format('YYYY-MM-DD')} since</Tag> : null}
+          {brand ? <Tag color="gold">{brand}</Tag> : null}
+        </div>
+        <Button onClick={async () => {
+          try{
             await Promise.all([loadSummary(), loadTable(table.page, table.limit, keyword)]);
             setLastUpdatedAt(new Date());
-          }}
-        >
-          REFRESH
-        </Button>
+          }catch{
+            message.error('Refresh failed');
+          }
+        }}>REFRESH</Button>
       </div>
+
+      {brandTabs}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
         <div className="bg-white border border-gray-200 rounded-xl p-6 text-center">
@@ -203,7 +223,7 @@ export default function RefundStatus() {
         </div>
         <div className="bg-white border border-gray-200 rounded-xl p-6 text-center">
           <div className="text-3xl font-bold text-green-600 mb-2">
-            {summary && Number.isFinite(Number(summary.total_profit_bnb)) ? formatNumber(summary.total_profit_bnb) : '—'}
+            {summary && Number.isFinite(Number(summary.total_profit_bnb)) ? Number(summary.total_profit_bnb).toFixed(4) : '—'}
             <span className="ml-1 text-base font-semibold text-gray-700">BNB</span>
           </div>
           <div className="text-sm text-gray-600 font-medium">backrun total profit (before burn)</div>
@@ -216,7 +236,7 @@ export default function RefundStatus() {
         </div>
         <div className="bg-white border border-gray-200 rounded-xl p-6 text-center">
           <div className="text-3xl font-bold text-red-500 mb-2">
-            {summary && Number.isFinite(Number(summary.rebate_bnb)) ? formatNumber(summary.rebate_bnb) : '—'}
+            {summary && Number.isFinite(Number(summary.rebate_bnb)) ? Number(summary.rebate_bnb).toFixed(4) : '—'}
             <span className="ml-1 text-base font-semibold text-gray-700">BNB</span>
           </div>
           <div className="text-sm text-gray-600 font-medium">backrun rebate</div>
@@ -235,10 +255,7 @@ export default function RefundStatus() {
           <div className="flex flex-wrap items-center gap-3">
             <DateRangePicker
               value={dateRange}
-              onChange={(val) => {
-                if (!val || !val.start || !val.end) return;
-                setDateRange(val);
-              }}
+              onChange={(val) => { if (!val || !val.start || !val.end) return; setDateRange(val); }}
               format="YYYY-MM-DD HH:mm"
               showTime={{ format: 'HH:mm' }}
               allowClear={false}
@@ -253,14 +270,7 @@ export default function RefundStatus() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <Input
-              allowClear
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              placeholder="Search tx / hash / block..."
-              style={{ width: 320 }}
-              prefix={<SearchOutlined />}
-            />
+            <Input allowClear value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="Search tx / hash / block..." style={{ width: 320 }} prefix={<SearchOutlined />} />
           </div>
         </div>
 
@@ -272,8 +282,6 @@ export default function RefundStatus() {
                   <th className="text-left py-2 px-3 text-gray-600">tx hash</th>
                   <th className="text-left py-2 px-3 text-gray-600">source</th>
                   <th className="text-left py-2 px-3 text-gray-600">blockNum</th>
-                  <th className="text-left py-2 px-3 text-gray-600">backrunHash</th>
-                  <th className="text-left py-2 px-3 text-gray-600">targetHash</th>
                   <th className="text-left py-2 px-3 text-gray-600">profit</th>
                   <th className="text-left py-2 px-3 text-gray-600">txIndex</th>
                   <th className="text-left py-2 px-3 text-gray-600">timestamp</th>
@@ -286,39 +294,15 @@ export default function RefundStatus() {
                   return (
                     <tr key={r.txHash + String(r.txIndex)} className="border-b border-gray-100 hover:bg-gray-50">
                       <td className="py-2 px-3 text-gray-900">
-                        <a href={toExplorerTx(r.txHash)} target="_blank" rel="noreferrer" className="hover:underline">
-                          {shortHash(r.txHash)}
-                        </a>
+                        <a href={toExplorerTx(r.txHash)} target="_blank" rel="noreferrer" className="hover:underline">{shortHash(r.txHash)}</a>
                       </td>
-                      <td className="py-2 px-3 text-gray-700">{r.source}</td>
+                      <td className="py-2 px-3 text-gray-700">{r.source === 'internal' ? <Tag color="gold">internal</Tag> : <Tag color="blue">external</Tag>}</td>
                       <td className="py-2 px-3">
-                        <a href={toExplorerBlock(r.blockNum)} target="_blank" rel="noreferrer" className="hover:underline">
-                          {formatNumber(r.blockNum)}
-                        </a>
-                      </td>
-                      <td className="py-2 px-3">
-                        {r.backrunHash ? (
-                          <Tooltip title={r.backrunHash}>
-                            <span>{shortHash(r.backrunHash)}</span>
-                          </Tooltip>
-                        ) : (
-                          '-' 
-                        )}
-                      </td>
-                      <td className="py-2 px-3">
-                        {r.targetHash ? (
-                          <Tooltip title={r.targetHash}>
-                            <span>{shortHash(r.targetHash)}</span>
-                          </Tooltip>
-                        ) : (
-                          '-' 
-                        )}
+                        <a href={toExplorerBlock(r.blockNum)} target="_blank" rel="noreferrer" className="hover:underline">{formatNumber(r.blockNum)}</a>
                       </td>
                       <td className="py-2 px-3 font-medium text-green-600">{Number(r.profit ?? 0).toFixed(5)} BNB</td>
                       <td className="py-2 px-3 text-gray-700">{r.txIndex}</td>
-                      <td className="py-2 px-3 text-gray-700">
-                        {d.format('YYYY-MM-DD HH:mm:ss')} {timezoneLabel}
-                      </td>
+                      <td className="py-2 px-3 text-gray-700">{d.format('YYYY-MM-DD HH:mm:ss')} {timezoneLabel}</td>
                     </tr>
                   );
                 })}
@@ -330,25 +314,13 @@ export default function RefundStatus() {
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-600">Page Size</span>
-                <Select
-                  size="small"
-                  style={{ width: 100 }}
-                  value={String(table.limit)}
-                  onChange={(v) => loadTable(1, Number(v), keyword)}
-                >
+                <Select size="small" style={{ width: 100 }} value={String(table.limit)} onChange={(v) => loadTable(1, Number(v), keyword)}>
                   <Option value="12">12</Option>
                   <Option value="24">24</Option>
                   <Option value="48">48</Option>
                 </Select>
               </div>
-              <Pagination
-                size="small"
-                current={table.page}
-                pageSize={table.limit}
-                total={table.total}
-                showSizeChanger={false}
-                onChange={(p) => loadTable(p, table.limit, keyword)}
-              />
+              <Pagination size="small" current={table.page} pageSize={table.limit} total={table.total} showSizeChanger={false} onChange={(p) => loadTable(p, table.limit, keyword)} />
             </div>
           </div>
         </div>

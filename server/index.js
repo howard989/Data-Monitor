@@ -22,7 +22,7 @@ const authMiddleware = require('../src/middleware/authMiddleware');
 
 
 const sandwichStatsHandler = require('./routes/sandwichStatsHandler');
-
+const refundStatusHandler = require('./routes/refundStatusHandler')
 
 
 
@@ -159,6 +159,8 @@ app.post('/api/secondary-login', async (req, res) => {
 
 
 app.use('/api/sandwich', sandwichStatsHandler);
+app.use('/api/refund', authMiddleware, refundStatusHandler)
+
 
 
 app.listen(port, '0.0.0.0', () => {

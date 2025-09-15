@@ -22,9 +22,11 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         if (authToken) {
             localStorage.setItem('token', authToken);
+            localStorage.setItem('authToken', authToken);
             setUser(jwtDecode(authToken));
         } else {
             localStorage.removeItem('token');
+            localStorage.removeItem('authToken');
             setUser(null);
         }
     }, [authToken]);
