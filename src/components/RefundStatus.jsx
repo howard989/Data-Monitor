@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button, Input, Tooltip, Select, Pagination, Tabs, Tag, message } from 'antd';
-import { SearchOutlined } from '@ant-design/icons';
+import { SearchOutlined, SwapOutlined, DollarOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import tzPlugin from 'dayjs/plugin/timezone';
@@ -131,6 +131,8 @@ export default function RefundStatus() {
   const [keyword, setKeyword] = useState('');
   const [table, setTable] = useState({ rows: [], total: 0, page: 1, limit: 12 });
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
+  const [sourceFilter, setSourceFilter] = useState('all');
+  const [sortConfig, setSortConfig] = useState({ field: null, direction: null });
 
   const compactRangeLabel = useCallback((start, end) => {
     if (!start || !end) return '';
@@ -159,6 +161,36 @@ export default function RefundStatus() {
     const r = await fetchRefundTx({ brand, start: startUtc, end: endUtc, page: p, limit: l, keyword: kw });
     setTable({ rows: Array.isArray(r?.rows) ? r.rows : [], total: Number(r?.total ?? 0), page: p, limit: l });
   }, [brand, startUtc, endUtc]);
+
+  const handleSort = (field) => {
+    setSortConfig(prev => {
+      if (prev.field !== field) return { field, direction: 'desc' };
+      if (prev.direction === 'desc') return { field, direction: 'asc' };
+      if (prev.direction === 'asc') return { field: null, direction: null };
+      return { field, direction: 'desc' };
+    });
+  };
+
+  const filteredAndSortedRows = useMemo(() => {
+    let rows = table.rows;
+    
+    if (sourceFilter !== 'all') {
+      rows = rows.filter(r => r.source === sourceFilter);
+    }
+    
+    if (sortConfig.field && sortConfig.direction) {
+      rows = [...rows].sort((a, b) => {
+        if (sortConfig.field === 'rebate') {
+          const aVal = Number(a.profit || 0);
+          const bVal = Number(b.profit || 0);
+          return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal;
+        }
+        return 0;
+      });
+    }
+    
+    return rows;
+  }, [table.rows, sourceFilter, sortConfig]);
 
   useEffect(() => {
     if (!brand) return;
@@ -253,6 +285,33 @@ export default function RefundStatus() {
               <Button onClick={() => quickSetRange(30)} size="small">30D</Button>
               <Button onClick={() => quickSetRange(90)} size="small">90D</Button>
             </div>
+            <div className="flex gap-2">
+              <Select 
+                size="small" 
+                style={{ width: 120 }} 
+                value={sourceFilter}
+                onChange={setSourceFilter}
+              >
+                <Option value="all">All Source</Option>
+                <Option value="internal">Internal</Option>
+                <Option value="external">External</Option>
+              </Select>
+              <Tooltip title={sortConfig.field === 'rebate' ? (sortConfig.direction === 'desc' ? 'Highest first' : 'Lowest first') : 'Sort by rebate'}>
+                <Button 
+                  size="small"
+                  type={sortConfig.field === 'rebate' ? 'primary' : 'default'}
+                  icon={<DollarOutlined />}
+                  onClick={() => handleSort('rebate')}
+                >
+                  Rebate
+                  {sortConfig.field === 'rebate' && (
+                    <span className="ml-1">
+                      {sortConfig.direction === 'desc' ? '↓' : '↑'}
+                    </span>
+                  )}
+                </Button>
+              </Tooltip>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -266,29 +325,32 @@ export default function RefundStatus() {
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
                   <th className="text-left py-2 px-3 text-gray-600">tx hash</th>
+                  <th className="text-left py-2 px-3 text-gray-600">target tx</th>
                   <th className="text-left py-2 px-3 text-gray-600">source</th>
                   <th className="text-left py-2 px-3 text-gray-600">blockNum</th>
-                  {/* <th className="text-left py-2 px-3 text-gray-600">profit</th> */}
                   <th className="text-left py-2 px-3 text-gray-600">rebate</th>
-                  <th className="text-left py-2 px-3 text-gray-600">txIndex</th>
                   <th className="text-left py-2 px-3 text-gray-600">timestamp</th>
                 </tr>
               </thead>
               <tbody>
-                {table.rows.map((r) => {
+                {filteredAndSortedRows.map((r) => {
                   const ms = String(r.timestamp).length <= 10 ? Number(r.timestamp) * 1000 : Number(r.timestamp);
                   const d = dayjs.tz(ms, timezone);
                   return (
-                    <tr key={r.txHash + String(r.txIndex)} className="border-b border-gray-100 hover:bg-gray-50">
+                    <tr key={r.txHash} className="border-b border-gray-100 hover:bg-gray-50">
                       <td className="py-2 px-3 text-gray-900">
                         <a href={toExplorerTx(r.txHash)} target="_blank" rel="noreferrer" className="hover:underline">{shortHash(r.txHash)}</a>
+                      </td>
+                      <td className="py-2 px-3 text-gray-900">
+                        {r.targetTx
+                          ? <a href={toExplorerTx(r.targetTx)} target="_blank" rel="noreferrer" className="hover:underline">{shortHash(r.targetTx)}</a>
+                          : <span className="text-gray-400">—</span>}
                       </td>
                       <td className="py-2 px-3 text-gray-700">{r.source === 'internal' ? <Tag color="gold">internal</Tag> : <Tag color="blue">external</Tag>}</td>
                       <td className="py-2 px-3">
                         <a href={toExplorerBlock(r.blockNum)} target="_blank" rel="noreferrer" className="hover:underline">{formatNumber(r.blockNum)}</a>
                       </td>
                       <td className="py-2 px-3 font-medium text-green-600">{Number(r.profit ?? 0).toFixed(5)} BNB</td>
-                      <td className="py-2 px-3 text-gray-700">{r.txIndex}</td>
                       <td className="py-2 px-3 text-gray-700">{d.format('YYYY-MM-DD HH:mm:ss')} {timezoneLabel}</td>
                     </tr>
                   );

@@ -79,16 +79,16 @@ async function getRefundSummary({ brand, start, end }) {
         sinceExt = rExtSince.rows[0]?.m ? new Date(rExtSince.rows[0].m).toISOString() : null
     }
 
-    const rebate = (BigInt(intRefund) + BigInt(extRefund)).toString()
-    const profit = intProfit
+    const rebateWei = Number(intRefund) + Number(extRefund)
+    const profitWei = Number(intProfit)
     const since = [sinceInt, sinceExt].filter(Boolean).sort()[0] || null
 
     return {
         success: true,
         brand: cfg.brand,
         onchain_count: intCnt,
-        total_profit_bnb: Number(BigInt(profit) / 1000000000000000000n),
-        rebate_bnb: Number(BigInt(rebate) / 1000000000000000000n),
+        total_profit_bnb: profitWei / 1e18,
+        rebate_bnb: rebateWei / 1e18,
         execution_ratio: null,
         since
     }
@@ -129,14 +129,14 @@ async function getRefundTx({ brand, start, end, page = 1, limit = 12, keyword = 
     }
 
     const intSql = cfg.internalTypes.length ? `
-  SELECT 
+  SELECT
     a.tx_hash AS "txHash",
     'internal'::text AS "source",
     a.block_number AS "blockNum",
-    a.tx_index AS "txIndex",
     EXTRACT(EPOCH FROM a.block_time)::bigint*1000 AS "timestamp",
     a.refund_amount_wei::numeric AS "amount_wei",
-    (a.refund_amount_wei::numeric / 1e18) AS "amount_bnb"
+    (a.refund_amount_wei::numeric / 1e18) AS "amount_bnb",
+    a.target_tx_hash AS "targetTx"
   FROM ${T_INTERNAL} a
   WHERE ${timeInt} AND ${intTypeCond} AND ${intRouterCond}
     AND a.refund_amount_wei IS NOT NULL
@@ -149,10 +149,10 @@ async function getRefundTx({ brand, start, end, page = 1, limit = 12, keyword = 
     b.tx_hash AS "txHash",
     'external'::text AS "source",
     b.block_number AS "blockNum",
-    b.tx_index AS "txIndex",
     EXTRACT(EPOCH FROM b.block_time)::bigint*1000 AS "timestamp",
     b.value_wei::numeric AS "amount_wei",
-    (b.value_wei::numeric / 1e18) AS "amount_bnb"
+    (b.value_wei::numeric / 1e18) AS "amount_bnb",
+    b.target_tx_hash AS "targetTx"
   FROM ${T_EXTERNAL} b
   WHERE ${timeExt}
     AND b.to_address = ANY($${extI++}::text[])
@@ -191,7 +191,7 @@ async function getRefundTx({ brand, start, end, page = 1, limit = 12, keyword = 
     let pageI = queryVals.length + 1
     const pageSql = `
     SELECT * FROM (${unionSql}) u
-    ORDER BY "blockNum" DESC, "txIndex" ASC
+    ORDER BY "blockNum" DESC, "timestamp" DESC
     LIMIT $${pageI++} OFFSET $${pageI++}
   `
     valsPage.push(Number(limit || 12), Number(off || 0))
@@ -201,11 +201,9 @@ async function getRefundTx({ brand, start, end, page = 1, limit = 12, keyword = 
         txHash: String(r.txHash),
         source: String(r.source),
         blockNum: Number(r.blockNum),
-        backrunHash: r.backrunHash,
-        targetHash: r.targetHash,
         profit: Number(r.amount_bnb || 0),
-        txIndex: Number(r.txIndex),
-        timestamp: Number(r.timestamp)
+        timestamp: Number(r.timestamp),
+        targetTx: r.targetTx ? String(r.targetTx) : null
     }))
     return { success: true, total: Number(rc.rows[0]?.c || 0), rows, page: Number(page || 1), limit: Number(limit || 12) }
 }
