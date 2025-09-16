@@ -24,7 +24,7 @@ function brandCfg(brand) {
     if (b === 'pancakeswap') return { brand: 'pancakeswap', internalTypes: ['pancakeSwap'], externalTo: [ADDR.pancakeswap], restrictRouter: null }
     if (b === 'blink') return { brand: 'blink', internalTypes: ['blink', 'blinkBlockRazor'], externalTo: [ADDR.blink], restrictRouter: null }
     if (b === 'merkle') return { brand: 'merkle', internalTypes: [], externalTo: [ADDR.merkle], restrictRouter: null }
-    return { brand: 'binanceWallet', internalTypes: ['binanceWallet'], externalTo: [], restrictRouter: ADDR.routerOurs }
+    return { brand: 'invalid', internalTypes: [], externalTo: [], restrictRouter: null }
 }
 
 function toTs(v) { return new Date(v).toISOString() }
@@ -95,8 +95,10 @@ async function getRefundSummary({ brand, start, end }) {
 }
 
 
-async function getRefundTx({ brand, start, end, page = 1, limit = 12, keyword = '' }) {
+async function getRefundTx({ brand, start, end, page = 1, limit = 12, keyword = '', sortBy = 'time', sortDir = 'desc' }) {
     const cfg = brandCfg(brand)
+    const safeSort = String(sortBy).toLowerCase() === 'rebate' ? 'rebate' : 'time'
+    const safeDir = String(sortDir).toLowerCase() === 'asc' ? 'ASC' : 'DESC'
 
     const intVals = []
     let intI = 1
@@ -189,9 +191,13 @@ async function getRefundTx({ brand, start, end, page = 1, limit = 12, keyword = 
     const valsCount = [...queryVals]
     const valsPage = [...queryVals]
     let pageI = queryVals.length + 1
+    const orderClause = safeSort === 'rebate'
+        ? `ORDER BY u."amount_wei" ${safeDir} NULLS LAST, u."blockNum" DESC, u."timestamp" DESC`
+        : `ORDER BY u."blockNum" DESC, u."timestamp" DESC`
+    
     const pageSql = `
     SELECT * FROM (${unionSql}) u
-    ORDER BY "blockNum" DESC, "timestamp" DESC
+    ${orderClause}
     LIMIT $${pageI++} OFFSET $${pageI++}
   `
     valsPage.push(Number(limit || 12), Number(off || 0))

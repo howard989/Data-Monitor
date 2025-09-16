@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button, Input, Tooltip, Select, Pagination, Tabs, Tag, message } from 'antd';
 import { SearchOutlined, SwapOutlined, DollarOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -72,8 +72,13 @@ async function fetchRefundSummary({ brand, start, end }) {
   }
   return await res.json();
 }
-async function fetchRefundTx({ brand, start, end, page = 1, limit = 12, keyword = '' }) {
-  const qs = new URLSearchParams({ brand, start, end, page: String(page), limit: String(limit), q: keyword || '' }).toString();
+async function fetchRefundTx({ brand, start, end, page = 1, limit = 12, keyword = '', sortBy='time', sortDir='desc' }) {
+  const qs = new URLSearchParams({
+    brand, start, end,
+    page: String(page), limit: String(limit),
+    q: keyword || '',
+    sort: sortBy, dir: sortDir
+  }).toString();
   const res = await authedFetch(`/api/refund/tx?${qs}`);
   if (!res.ok) {
     const text = await res.text();
@@ -85,6 +90,7 @@ async function fetchRefundTx({ brand, start, end, page = 1, limit = 12, keyword 
 
 export default function RefundStatus() {
   const { timezone, timezoneLabel } = useTimezone();
+  const navigate = useNavigate();
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     const check = () => setIsMobile(typeof window !== 'undefined' && window.innerWidth < 640);
@@ -101,6 +107,11 @@ export default function RefundStatus() {
     (async () => {
       try {
         const { allowed, user } = await fetchAllowedBrands();
+        if (!allowed || allowed.length === 0) {
+          message.error('No Data');
+          navigate('/data-center');
+          return;
+        }
         setAllowedBrands(allowed || []);
         setBrand((allowed || [])[0] || '');
         setWho(user || '');
@@ -109,9 +120,10 @@ export default function RefundStatus() {
         setBrand('');
         setWho('');
         message.error('Auth failed');
+        navigate('/data-center');
       }
     })();
-  }, []);
+  }, [navigate]);
 
   const [dateRange, setDateRange] = useState(() => {
     const now = dayjs().tz(timezone);
@@ -158,9 +170,11 @@ export default function RefundStatus() {
 
   const loadTable = useCallback(async (p = table.page, l = table.limit, kw = keyword) => {
     if (!brand) return;
-    const r = await fetchRefundTx({ brand, start: startUtc, end: endUtc, page: p, limit: l, keyword: kw });
+    const sortBy = sortConfig.field === 'rebate' ? 'rebate' : 'time';
+    const sortDir = sortConfig.direction || 'desc';
+    const r = await fetchRefundTx({ brand, start: startUtc, end: endUtc, page: p, limit: l, keyword: kw, sortBy, sortDir });
     setTable({ rows: Array.isArray(r?.rows) ? r.rows : [], total: Number(r?.total ?? 0), page: p, limit: l });
-  }, [brand, startUtc, endUtc]);
+  }, [brand, startUtc, endUtc, sortConfig]);
 
   const handleSort = (field) => {
     setSortConfig(prev => {
@@ -171,26 +185,10 @@ export default function RefundStatus() {
     });
   };
 
-  const filteredAndSortedRows = useMemo(() => {
-    let rows = table.rows;
-    
-    if (sourceFilter !== 'all') {
-      rows = rows.filter(r => r.source === sourceFilter);
-    }
-    
-    if (sortConfig.field && sortConfig.direction) {
-      rows = [...rows].sort((a, b) => {
-        if (sortConfig.field === 'rebate') {
-          const aVal = Number(a.profit || 0);
-          const bVal = Number(b.profit || 0);
-          return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal;
-        }
-        return 0;
-      });
-    }
-    
-    return rows;
-  }, [table.rows, sourceFilter, sortConfig]);
+  const filteredRows = useMemo(() => {
+    if (sourceFilter === 'all') return table.rows;
+    return table.rows.filter(r => r.source === sourceFilter);
+  }, [table.rows, sourceFilter]);
 
   useEffect(() => {
     if (!brand) return;
@@ -333,7 +331,7 @@ export default function RefundStatus() {
                 </tr>
               </thead>
               <tbody>
-                {filteredAndSortedRows.map((r) => {
+                {filteredRows.map((r) => {
                   const ms = String(r.timestamp).length <= 10 ? Number(r.timestamp) * 1000 : Number(r.timestamp);
                   const d = dayjs.tz(ms, timezone);
                   return (

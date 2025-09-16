@@ -9,7 +9,7 @@ function userAllowedBrands(username){
   const u = String(username||'').toLowerCase()
   if(u === 'admin') return ALL_BRANDS
   if(access[u] && Array.isArray(access[u]) && access[u].length) return access[u]
-  return ['binanceWallet']
+  return []
 }
 
 function sanitizeBrandForUser(username, brand){
@@ -32,6 +32,10 @@ router.get('/brands', async (req,res)=>{
 router.get('/summary', async (req,res)=>{
   try{
     const user = req.user?.username || ''
+    const allowed = userAllowedBrands(user)
+    if(!allowed || allowed.length === 0){
+      return res.status(403).json({success:false,error:'No permission'})
+    }
     const brand = sanitizeBrandForUser(user, req.query.brand || '')
     const start = req.query.start
     const end = req.query.end
@@ -48,14 +52,20 @@ router.get('/summary', async (req,res)=>{
 router.get('/tx', async (req,res)=>{
   try{
     const user = req.user?.username || ''
+    const allowed = userAllowedBrands(user)
+    if(!allowed || allowed.length === 0){
+      return res.status(403).json({success:false,error:'No permission'})
+    }
     const brand = sanitizeBrandForUser(user, req.query.brand || '')
     const start = req.query.start
     const end = req.query.end
     const page = parseInt(req.query.page||'1',10)
     const limit = parseInt(req.query.limit||'12',10)
     const q = req.query.q || ''
+    const sort = (req.query.sort||'time').toLowerCase() === 'rebate' ? 'rebate' : 'time'
+    const dir = (req.query.dir||'desc').toLowerCase() === 'asc' ? 'asc' : 'desc'
     if(!start || !end) return res.status(400).json({success:false,error:'missing range'})
-    const r = await getRefundTx({brand,start,end,page,limit,keyword:q})
+    const r = await getRefundTx({brand,start,end,page,limit,keyword:q,sortBy:sort,sortDir:dir})
     res.set('Cache-Control','private, max-age=10, stale-while-revalidate=30')
     res.json(r)
   }catch(e){

@@ -1,8 +1,7 @@
 module.exports = {
-    admin: ['admin'],
-    'binancewallet': ['binanceWallet'],
-    'pancakeswap': ['pancakeswap'],
-    'blink': ['blink'],
-    'merkle': ['merkle']
-  }
-  
+  'admin': ['binanceWallet', 'pancakeswap', 'blink', 'merkle'],
+  'binancewallet': ['binanceWallet'],
+  'pancakeswap': ['pancakeswap'],
+  'blink': ['blink'],
+  'merkle': ['merkle']
+}
