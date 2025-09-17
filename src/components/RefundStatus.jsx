@@ -48,8 +48,22 @@ async function ensureToken() {
   throw new Error('no token');
 }
 async function authedFetch(url) {
-  const t = await ensureToken();
-  return fetch(url, { headers: { Authorization: `Bearer ${t}` } });
+  let t = await ensureToken();
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${t}` } });
+
+  if (res.status === 401) {
+    const refreshRes = await fetch('/api/auth/refresh', { method: 'POST' });
+    if (refreshRes.ok) {
+      const j = await refreshRes.json();
+      if (j?.token) {
+        localStorage.setItem('token', j.token);
+        localStorage.setItem('authToken', j.token);
+        return fetch(url, { headers: { Authorization: `Bearer ${j.token}` } });
+      }
+    }
+  }
+
+  return res;
 }
 
 async function fetchAllowedBrands() {
@@ -72,9 +86,9 @@ async function fetchRefundSummary({ brand, start, end }) {
   }
   return await res.json();
 }
-async function fetchRefundTx({ brand, start, end, page = 1, limit = 12, keyword = '', sortBy='time', sortDir='desc' }) {
+async function fetchRefundTx({ brand, start, end, page = 1, limit = 12, keyword = '', sortBy = 'time', sortDir = 'desc', source = 'all' }) {
   const qs = new URLSearchParams({
-    brand, start, end,
+    brand, start, end, source,
     page: String(page), limit: String(limit),
     q: keyword || '',
     sort: sortBy, dir: sortDir
@@ -168,13 +182,13 @@ export default function RefundStatus() {
     setSummary(s);
   }, [brand, startUtc, endUtc]);
 
-  const loadTable = useCallback(async (p = table.page, l = table.limit, kw = keyword) => {
+  const loadTable = useCallback(async (p = table.page, l = table.limit, kw = keyword, src = sourceFilter) => {
     if (!brand) return;
     const sortBy = sortConfig.field === 'rebate' ? 'rebate' : 'time';
     const sortDir = sortConfig.direction || 'desc';
-    const r = await fetchRefundTx({ brand, start: startUtc, end: endUtc, page: p, limit: l, keyword: kw, sortBy, sortDir });
+    const r = await fetchRefundTx({ brand, start: startUtc, end: endUtc, page: p, limit: l, keyword: kw, sortBy, sortDir, source: src });
     setTable({ rows: Array.isArray(r?.rows) ? r.rows : [], total: Number(r?.total ?? 0), page: p, limit: l });
-  }, [brand, startUtc, endUtc, sortConfig]);
+  }, [brand, startUtc, endUtc, sortConfig, sourceFilter]);
 
   const handleSort = (field) => {
     setSortConfig(prev => {
@@ -185,24 +199,21 @@ export default function RefundStatus() {
     });
   };
 
-  const filteredRows = useMemo(() => {
-    if (sourceFilter === 'all') return table.rows;
-    return table.rows.filter(r => r.source === sourceFilter);
-  }, [table.rows, sourceFilter]);
+  const filteredRows = table.rows;
 
   useEffect(() => {
     if (!brand) return;
     (async () => {
-      await Promise.all([loadSummary(), loadTable(1, table.limit, keyword)]);
+      await Promise.all([loadSummary(), loadTable(1, table.limit, keyword, sourceFilter)]);
       setTable((prev) => ({ ...prev, page: 1 }));
       setLastUpdatedAt(new Date());
     })();
-  }, [brand, loadSummary, loadTable, table.limit]);
+  }, [brand, loadSummary, loadTable, table.limit, sourceFilter]);
 
   useEffect(() => {
-    const h = setTimeout(() => { loadTable(1, table.limit, keyword); }, 400);
+    const h = setTimeout(() => { loadTable(1, table.limit, keyword, sourceFilter); }, 400);
     return () => clearTimeout(h);
-  }, [keyword, table.limit, loadTable]);
+  }, [keyword, table.limit, loadTable, sourceFilter]);
 
   const isAdmin = String(who || '').toLowerCase() === 'admin';
   const brandTabs = isAdmin && allowedBrands.length > 1 ? (
@@ -211,6 +222,11 @@ export default function RefundStatus() {
       label: b === 'binanceWallet' ? 'Binance' : b === 'pancakeswap' ? 'Pancake' : b === 'blink' ? 'Blink' : b === 'merkle' ? 'Merkle' : b
     }))} />
   ) : null;
+
+  useEffect(() => {
+    loadTable(1, table.limit, keyword, sourceFilter);
+  }, [sourceFilter]);
+
 
   return (
     <div className={`min-h-screen watermark-container ${isMobile ? 'p-4' : 'p-8 mx-auto max-w-[1280px]'}`}>
@@ -232,10 +248,10 @@ export default function RefundStatus() {
           {brand ? <Tag color="gold">{brand}</Tag> : null}
         </div>
         <Button onClick={async () => {
-          try{
+          try {
             await Promise.all([loadSummary(), loadTable(table.page, table.limit, keyword)]);
             setLastUpdatedAt(new Date());
-          }catch{
+          } catch {
             message.error('Refresh failed');
           }
         }}>REFRESH</Button>
@@ -284,18 +300,18 @@ export default function RefundStatus() {
               <Button onClick={() => quickSetRange(90)} size="small">90D</Button>
             </div>
             <div className="flex gap-2">
-              <Select 
-                size="small" 
-                style={{ width: 120 }} 
+              <Select
+                size="small"
+                style={{ width: 120 }}
                 value={sourceFilter}
-                onChange={setSourceFilter}
+                onChange={(v) => { setSourceFilter(v); }}
               >
                 <Option value="all">All Source</Option>
                 <Option value="internal">Internal</Option>
                 <Option value="external">External</Option>
               </Select>
               <Tooltip title={sortConfig.field === 'rebate' ? (sortConfig.direction === 'desc' ? 'Highest first' : 'Lowest first') : 'Sort by rebate'}>
-                <Button 
+                <Button
                   size="small"
                   type={sortConfig.field === 'rebate' ? 'primary' : 'default'}
                   icon={<DollarOutlined />}

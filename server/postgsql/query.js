@@ -395,8 +395,14 @@ async function getSandwichStats(
     startDate = monthInfo.startDate;
     endDate = monthInfo.endDate;
   }
-  const startDateTime = usingDefaultWindow ? monthInfo.startDateTime : `${startDate}T00:00:00Z`;
-  const endDateTime = usingDefaultWindow ? monthInfo.endDateTime : `${endDate}T23:59:59Z`;
+  const startDateTime = usingDefaultWindow ? monthInfo.startDateTime : 
+    (startDate.includes('T') || startDate.includes(' ') 
+      ? startDate.replace(' ', 'T') + (startDate.includes('Z') ? '' : 'Z')
+      : `${startDate}T00:00:00Z`);
+  const endDateTime = usingDefaultWindow ? monthInfo.endDateTime :
+    (endDate.includes('T') || endDate.includes(' ')
+      ? endDate.replace(' ', 'T') + (endDate.includes('Z') ? '' : 'Z')
+      : `${endDate}T23:59:59Z`);
   const cacheKey = JSON.stringify({ builderName, startDate, endDate, bundleFilter, amountRange, frontrunRouter });
   const cached = statsCache.get(cacheKey);
   if (cached) return cached;
@@ -670,8 +676,12 @@ async function getBuilderSandwiches(builderName, page = 1, limit = 50, startDate
   const dataParams = [builderName];
 
   if (startDate && endDate) {
-    const startDateTime = `${startDate}T00:00:00Z`;
-    const endDateTime = `${endDate}T23:59:59Z`;
+    const startDateTime = startDate.includes('T') || startDate.includes(' ') 
+      ? startDate.replace(' ', 'T') + (startDate.includes('Z') ? '' : 'Z')
+      : `${startDate}T00:00:00Z`;
+    const endDateTime = endDate.includes('T') || endDate.includes(' ')
+      ? endDate.replace(' ', 'T') + (endDate.includes('Z') ? '' : 'Z')
+      : `${endDate}T23:59:59Z`;
     dateFilter = ' AND sa.block_time >= $2::timestamptz AND sa.block_time <= $3::timestamptz';
     countParams.push(startDateTime, endDateTime);
     dataParams.push(startDateTime, endDateTime);
@@ -782,8 +792,12 @@ async function getChartData(
   }
 
   // Use timestamptz format with Z suffix
-  const startDateTime = `${startDate}T00:00:00Z`;
-  const endDateTime = `${endDate}T23:59:59Z`;
+  const startDateTime = startDate.includes('T') || startDate.includes(' ') 
+    ? startDate.replace(' ', 'T') + (startDate.includes('Z') ? '' : 'Z')
+    : `${startDate}T00:00:00Z`;
+  const endDateTime = endDate.includes('T') || endDate.includes(' ')
+    ? endDate.replace(' ', 'T') + (endDate.includes('Z') ? '' : 'Z')
+    : `${endDate}T23:59:59Z`;
 
   const hasAmount = !!amountRange && ((amountRange.min ?? '') !== '' || (amountRange.max ?? '') !== '');
 
@@ -1076,8 +1090,12 @@ async function searchSandwiches({ victim_to = null, is_bundle = null, profit_tok
     where += ` AND sa.profit_token = $${params.length}`;
   }
   if (startDate && endDate) {
-    const startDateTime = `${startDate}T00:00:00Z`;
-    const endDateTime = `${endDate}T23:59:59Z`;
+    const startDateTime = startDate.includes('T') || startDate.includes(' ') 
+      ? startDate.replace(' ', 'T') + (startDate.includes('Z') ? '' : 'Z')
+      : `${startDate}T00:00:00Z`;
+    const endDateTime = endDate.includes('T') || endDate.includes(' ')
+      ? endDate.replace(' ', 'T') + (endDate.includes('Z') ? '' : 'Z')
+      : `${endDate}T23:59:59Z`;
     params.push(startDateTime, endDateTime);
     where += ` AND sa.block_time BETWEEN $${params.length - 1}::timestamptz AND $${params.length}::timestamptz`;
   }
@@ -1091,21 +1109,21 @@ async function searchSandwiches({ victim_to = null, is_bundle = null, profit_tok
 
   dataParams = params.slice();
   let orderBySql = 'sa.block_number DESC';
-  if (sortBy === 'profit') {
-    let bnbParamLiteral = 'NULL';
-    if (Number.isFinite(bnbUsd) && bnbUsd > 0) {
-      dataParams.push(bnbUsd);
-      bnbParamLiteral = `$${dataParams.length}`;
-    }
-    const profitUsdExpr = `
-          CASE
-            WHEN sa.profit_token IN (${stableList}) THEN sa.profit_wei::numeric / 1e18
-            WHEN sa.profit_token = '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c' THEN (sa.profit_wei::numeric / 1e18) * ${bnbParamLiteral}
-            ELSE NULL
-          END
-        `;
-    orderBySql = `${profitUsdExpr} DESC NULLS LAST, sa.block_number DESC`;
-  }
+  // if (sortBy === 'profit') {
+  //   let bnbParamLiteral = 'NULL';
+  //   if (Number.isFinite(bnbUsd) && bnbUsd > 0) {
+  //     dataParams.push(bnbUsd);
+  //     bnbParamLiteral = `$${dataParams.length}`;
+  //   }
+  //   const profitUsdExpr = `
+  //         CASE
+  //           WHEN sa.profit_token IN (${stableList}) THEN sa.profit_wei::numeric / 1e18
+  //           WHEN sa.profit_token = '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c' THEN (sa.profit_wei::numeric / 1e18) * ${bnbParamLiteral}
+  //           ELSE NULL
+  //         END
+  //       `;
+  //   orderBySql = `${profitUsdExpr} DESC NULLS LAST, sa.block_number DESC`;
+  // }
 
   dataParams.push(limit, offset);
 
@@ -1177,8 +1195,12 @@ async function getBlockProductionStats(startDate = null, endDate = null) {
     startDate = monthInfo.startDate;
     endDate = monthInfo.endDate;
   }
-  const startDateTime = `${startDate}T00:00:00Z`;
-  const endDateTime   = `${endDate}T23:59:59Z`;
+  const startDateTime = startDate && (startDate.includes('T') || startDate.includes(' ')) 
+    ? startDate.replace(' ', 'T') + (startDate.includes('Z') ? '' : 'Z')
+    : `${startDate}T00:00:00Z`;
+  const endDateTime = endDate && (endDate.includes('T') || endDate.includes(' '))
+    ? endDate.replace(' ', 'T') + (endDate.includes('Z') ? '' : 'Z')
+    : `${endDate}T23:59:59Z`;
 
   const baseSql = `
     SELECT 

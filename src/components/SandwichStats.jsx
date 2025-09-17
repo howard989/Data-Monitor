@@ -12,7 +12,7 @@ import {
 } from '../data/apiSandwichStats';
 import { useTimezone } from '../context/TimezoneContext';
 import { formatBlockTime } from '../utils/timeFormatter';
-import { monthRangeFromUtcMs, prevMonthRangeFromUtcMs, getAnchorMs } from '../utils/dateHelpers';
+import { monthRangeFromUtcMs, prevMonthRangeFromUtcMs, getAnchorMs, minutesRangeFromNow } from '../utils/dateHelpers';
 import TimezoneSelector from './TimezoneSelector';
 import SandwichChart from './SandwichChart';
 import SandwichFilter from './SandwichFilter';
@@ -55,8 +55,12 @@ const SandwichStats = () => {
  
   const compactRangeLabel = (start, end) => {
     if (!start || !end) return '';
-    const sMs = Date.parse(`${start}T00:00:00Z`);
-    const eMs = Date.parse(`${end}T00:00:00Z`);
+    const sMs = start.includes(' ') || start.includes('T') 
+      ? Date.parse(start.replace(' ', 'T') + (start.includes('Z') ? '' : 'Z'))
+      : Date.parse(`${start}T00:00:00Z`);
+    const eMs = end.includes(' ') || end.includes('T')
+      ? Date.parse(end.replace(' ', 'T') + (end.includes('Z') ? '' : 'Z'))
+      : Date.parse(`${end}T00:00:00Z`);
   
     const fmt = (ms, opts) => new Intl.DateTimeFormat('en-US', { ...opts, timeZone: timezone }).format(ms);
 
@@ -112,6 +116,8 @@ const SandwichStats = () => {
 
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const [builderDateRange, setBuilderDateRange] = useState({ start: '', end: '' });
+  const [activeTimeFilter, setActiveTimeFilter] = useState(null);
+  const [customMinutes, setCustomMinutes] = useState('');
 
   const [bundleFilter, setBundleFilter] = useState('all');
   const [amountRange, setAmountRange] = useState({ min: '', max: '' });
@@ -551,9 +557,9 @@ const SandwichStats = () => {
       if (filters.builder && filters.builder !== 'all') {
         params.builder = filters.builder;
       }
-      if ((filters.sortBy === 'profit' || filters.sortBy === 'profit_asc') && bnbUsdt) {
-        params.bnbUsd = bnbUsdt;
-      }
+      // if ((filters.sortBy === 'profit' || filters.sortBy === 'profit_asc') && bnbUsdt) {
+      //   params.bnbUsd = bnbUsdt;
+      // }
 
       const res = await fetchSandwichSearch(params);
       
@@ -1036,12 +1042,12 @@ const SandwichStats = () => {
                       case 'gt10':
                         setAmountRange({ filterType: 'gt10', min: '10', max: '' });
                         break;
-                      case 'gt100':
-                        setAmountRange({ filterType: 'gt100', min: '100', max: '' });
-                        break;
-                      case 'gt1000':
-                        setAmountRange({ filterType: 'gt1000', min: '1000', max: '' });
-                        break;
+                      // case 'gt100':
+                      //   setAmountRange({ filterType: 'gt100', min: '100', max: '' });
+                      //   break;
+                      // case 'gt1000':
+                      //   setAmountRange({ filterType: 'gt1000', min: '1000', max: '' });
+                      //   break;
                       default:
                         setAmountRange({ filterType: 'all', min: '', max: '' });
                     }
@@ -1054,8 +1060,8 @@ const SandwichStats = () => {
                   <Option value="lt1">&lt; $1</Option>
                   <Option value="gt1">&gt; $1</Option>
                   <Option value="gt10">&gt; $10</Option>
-                  <Option value="gt100">&gt; $100</Option>
-                  <Option value="gt1000">&gt; $1K</Option>
+                  {/* <Option value="gt100">&gt; $100</Option> */}
+                  {/* <Option value="gt1000">&gt; $1K</Option> */}
                 </Select>
               </div>
 
@@ -1086,8 +1092,9 @@ const SandwichStats = () => {
                       amountRange.filterType === 'lt1' ? '< $1' :
                       amountRange.filterType === 'gt1' ? '> $1' :
                       amountRange.filterType === 'gt10' ? '> $10' :
-                      amountRange.filterType === 'gt100' ? '> $100' :
-                      amountRange.filterType === 'gt1000' ? '> $1K' : ''
+                      // amountRange.filterType === 'gt100' ? '> $100' :
+                      // amountRange.filterType === 'gt1000' ? '> $1K' : 
+                      ''
                     }
                   </span>
                 )}
@@ -1102,7 +1109,10 @@ const SandwichStats = () => {
             <div className={`${isMobile ? 'w-full' : 'w-full sm:w-[280px]'}`}>
               <DateRangePicker
                 value={dateRange}
-                onChange={(v) => setDateRange(v)}
+                onChange={(v) => {
+                  setDateRange(v);
+                  setActiveTimeFilter(null);
+                }}
                 inputReadOnly
                 className="w-full"
               />
@@ -1111,9 +1121,11 @@ const SandwichStats = () => {
             <div className={`flex gap-2 ${isMobile ? 'w-full' : ''}`}>
               <Button
                 size="middle"
+                type={activeTimeFilter === 'month' ? 'primary' : 'default'}
                 onClick={() => {
                   const anchor = getAnchorMs(recentBlocks);
                   setDateRange(monthRangeFromUtcMs(anchor));
+                  setActiveTimeFilter('month');
                 }}
                 disabled={statsLoading || isPaused}
               >
@@ -1131,14 +1143,70 @@ const SandwichStats = () => {
                 Last Month
               </Button> */}
 
+              <Button
+                size="middle"
+                type={activeTimeFilter === '2m' ? 'primary' : 'default'}
+                onClick={() => {
+                  setDateRange(minutesRangeFromNow(2));
+                  setActiveTimeFilter('2m');
+                }}
+                disabled={statsLoading || isPaused}
+              >
+                Last 2m
+              </Button>
+
+              <Button
+                size="middle"
+                type={activeTimeFilter === '20m' ? 'primary' : 'default'}
+                onClick={() => {
+                  setDateRange(minutesRangeFromNow(20));
+                  setActiveTimeFilter('20m');
+                }}
+                disabled={statsLoading || isPaused}
+              >
+                Last 20m
+              </Button>
+
+              <div className="flex items-center gap-1">
+                <Input
+                  size="middle"
+                  placeholder="Min"
+                  value={customMinutes}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, '');
+                    setCustomMinutes(value);
+                  }}
+                  onPressEnter={() => {
+                    if (customMinutes && Number(customMinutes) > 0) {
+                      const range = minutesRangeFromNow(Number(customMinutes));
+                      setDateRange(range);
+                      setActiveTimeFilter(`custom-${customMinutes}`);
+                      fetchStats(range.start, range.end);
+                      if (selectedBuilder) {
+                        loadBuilderStats(selectedBuilder, range.start, range.end);
+                      }
+                    }
+                  }}
+                  style={{ width: 60 }}
+                  disabled={statsLoading || isPaused}
+                />
+                <span className="text-sm text-gray-600">m</span>
+              </div>
+
             </div>
 
             <Button
               type="primary"
               onClick={() => {
-                fetchStats(dateRange.start, dateRange.end);
+                let range = dateRange;
+                if (customMinutes && Number(customMinutes) > 0) {
+                  range = minutesRangeFromNow(Number(customMinutes));
+                  setDateRange(range);
+                  setActiveTimeFilter(`custom-${customMinutes}`);
+                }
+                fetchStats(range.start, range.end);
                 if (selectedBuilder) {
-                  loadBuilderStats(selectedBuilder, dateRange.start, dateRange.end);
+                  loadBuilderStats(selectedBuilder, range.start, range.end);
                 }
               }}
               disabled={isPaused || statsLoading}
@@ -1150,6 +1218,9 @@ const SandwichStats = () => {
               <Button
                 onClick={() => {
                   setDateRange({ start: '', end: '' });
+                  setActiveTimeFilter(null);
+                  setCustomMinutes('');
+                  fetchStats('', '');
                   if (selectedBuilder) {
                     loadBuilderStats(selectedBuilder, '', '');
                   }

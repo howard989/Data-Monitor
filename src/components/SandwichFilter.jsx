@@ -126,8 +126,8 @@ const SandwichFilter = ({
             >
               <Option value="time">Time (Newest First)</Option>
               <Option value="time_asc">Time (Oldest First)</Option>
-              <Option value="profit">Profit (Highest First)</Option>
-              <Option value="profit_asc">Profit (Lowest First)</Option>
+              {/* <Option value="profit">Profit (Highest First)</Option> */}
+              {/* <Option value="profit_asc">Profit (Lowest First)</Option> */}
             </Select>
           </div>
 

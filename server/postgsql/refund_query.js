@@ -95,10 +95,13 @@ async function getRefundSummary({ brand, start, end }) {
 }
 
 
-async function getRefundTx({ brand, start, end, page = 1, limit = 12, keyword = '', sortBy = 'time', sortDir = 'desc' }) {
+async function getRefundTx({ brand, start, end, page = 1, limit = 12, keyword = '', sortBy = 'time', sortDir = 'desc', source = 'all' }) {
     const cfg = brandCfg(brand)
     const safeSort = String(sortBy).toLowerCase() === 'rebate' ? 'rebate' : 'time'
     const safeDir = String(sortDir).toLowerCase() === 'asc' ? 'ASC' : 'DESC'
+     const src = String(source || 'all').toLowerCase()
+  const wantsInternal = (src === 'all' || src === 'internal') && cfg.internalTypes.length
+  const wantsExternal = (src === 'all' || src === 'external') && cfg.externalTo.length
 
     const intVals = []
     let intI = 1
@@ -130,7 +133,7 @@ async function getRefundTx({ brand, start, end, page = 1, limit = 12, keyword = 
         }
     }
 
-    const intSql = cfg.internalTypes.length ? `
+const intSql = wantsInternal ? `
   SELECT
     a.tx_hash AS "txHash",
     'internal'::text AS "source",
@@ -146,7 +149,7 @@ async function getRefundTx({ brand, start, end, page = 1, limit = 12, keyword = 
     AND ${intKw}
 ` : null
 
-    const extSql = cfg.externalTo.length ? `
+ const extSql = wantsExternal ? `
   SELECT
     b.tx_hash AS "txHash",
     'external'::text AS "source",
