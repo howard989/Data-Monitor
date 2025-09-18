@@ -22,7 +22,7 @@ function brandCfg(brand) {
     const b = String(brand || '').toLowerCase()
     if (b === 'binancewallet') return { brand: 'binanceWallet', internalTypes: ['binanceWallet'], externalTo: [], restrictRouter: ADDR.routerOurs }
     if (b === 'pancakeswap') return { brand: 'pancakeswap', internalTypes: ['pancakeSwap'], externalTo: [ADDR.pancakeswap], restrictRouter: null }
-    if (b === 'blink') return { brand: 'blink', internalTypes: ['blink', 'blinkBlockRazor'], externalTo: [ADDR.blink], restrictRouter: null }
+    if (b === 'blink') return { brand: 'blink', internalTypes: ['blink', 'blinkBlockRazor', 'blinkNew'], externalTo: [ADDR.blink], restrictRouter: null }
     if (b === 'merkle') return { brand: 'merkle', internalTypes: [], externalTo: [ADDR.merkle], restrictRouter: null }
     return { brand: 'invalid', internalTypes: [], externalTo: [], restrictRouter: null }
 }
@@ -100,15 +100,26 @@ async function getRefundTx({ brand, start, end, page = 1, limit = 12, keyword = 
     const safeSort = String(sortBy).toLowerCase() === 'rebate' ? 'rebate' : 'time'
     const safeDir = String(sortDir).toLowerCase() === 'asc' ? 'ASC' : 'DESC'
      const src = String(source || 'all').toLowerCase()
-  const wantsInternal = (src === 'all' || src === 'internal') && cfg.internalTypes.length
+  const wantsInternal = (src === 'all' || src === 'internal' || src === 'new_internal') && cfg.internalTypes.length
   const wantsExternal = (src === 'all' || src === 'external') && cfg.externalTo.length
 
     const intVals = []
     let intI = 1
     const timeInt = `a.block_time >= $${intI++}::timestamptz AND a.block_time <= $${intI++}::timestamptz`
     intVals.push(toTs(start), toTs(end))
-    const intTypeCond = cfg.internalTypes.length ? `a.refund_type = ANY($${intI++}::text[])` : `false`
-    if (cfg.internalTypes.length) intVals.push(cfg.internalTypes)
+
+    let intTypeCond = `false`
+    if (cfg.internalTypes.length) {
+        if (src === 'new_internal') {
+            intTypeCond = `a.refund_type = 'blinkNew'`
+        } else if (src === 'internal') {
+            intTypeCond = `a.refund_type = ANY($${intI++}::text[]) AND a.refund_type != 'blinkNew'`
+            intVals.push(cfg.internalTypes.filter(t => t !== 'blinkNew'))
+        } else {
+            intTypeCond = `a.refund_type = ANY($${intI++}::text[])`
+            intVals.push(cfg.internalTypes)
+        }
+    }
     const intRouterCond = cfg.restrictRouter ? `a.router_address = $${intI++}` : `true`
     if (cfg.restrictRouter) intVals.push(cfg.restrictRouter.toLowerCase())
 
@@ -136,7 +147,10 @@ async function getRefundTx({ brand, start, end, page = 1, limit = 12, keyword = 
 const intSql = wantsInternal ? `
   SELECT
     a.tx_hash AS "txHash",
-    'internal'::text AS "source",
+    CASE
+      WHEN a.refund_type = 'blinkNew' THEN 'new_internal'::text
+      ELSE 'internal'::text
+    END AS "source",
     a.block_number AS "blockNum",
     EXTRACT(EPOCH FROM a.block_time)::bigint*1000 AS "timestamp",
     a.refund_amount_wei::numeric AS "amount_wei",

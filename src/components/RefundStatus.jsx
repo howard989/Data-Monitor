@@ -183,12 +183,24 @@ export default function RefundStatus() {
   }, [brand, startUtc, endUtc]);
 
   const loadTable = useCallback(async (p = table.page, l = table.limit, kw = keyword, src = sourceFilter) => {
-    if (!brand) return;
+    if (!brand) {
+      setTable({ rows: [], total: 0, page: 1, limit: l });
+      return;
+    }
     const sortBy = sortConfig.field === 'rebate' ? 'rebate' : 'time';
     const sortDir = sortConfig.direction || 'desc';
-    const r = await fetchRefundTx({ brand, start: startUtc, end: endUtc, page: p, limit: l, keyword: kw, sortBy, sortDir, source: src });
-    setTable({ rows: Array.isArray(r?.rows) ? r.rows : [], total: Number(r?.total ?? 0), page: p, limit: l });
-  }, [brand, startUtc, endUtc, sortConfig, sourceFilter]);
+    setTable(prev => ({ ...prev, rows: [], total: 0, page: p, limit: l }));
+    try {
+      const r = await fetchRefundTx({
+        brand, start: startUtc, end: endUtc,
+        page: p, limit: l, keyword: kw,
+        sortBy, sortDir, source: src
+      });
+      setTable({ rows: Array.isArray(r?.rows) ? r.rows : [], total: Number(r?.total ?? 0), page: p, limit: l });
+    } catch (e) {
+      setTable({ rows: [], total: 0, page: p, limit: l });
+    }
+  }, [brand, startUtc, endUtc, sortConfig, sourceFilter, table.page, table.limit, keyword]);
 
   const handleSort = (field) => {
     setSortConfig(prev => {
@@ -249,7 +261,7 @@ export default function RefundStatus() {
         </div>
         <Button onClick={async () => {
           try {
-            await Promise.all([loadSummary(), loadTable(table.page, table.limit, keyword)]);
+            await Promise.all([loadSummary(), loadTable(table.page, table.limit, keyword, sourceFilter)]);
             setLastUpdatedAt(new Date());
           } catch {
             message.error('Refresh failed');
@@ -271,7 +283,7 @@ export default function RefundStatus() {
             {summary && Number.isFinite(Number(summary.rebate_bnb)) ? Number(summary.rebate_bnb).toFixed(4) : '—'}
             <span className="ml-1 text-base font-semibold text-gray-700">BNB</span>
           </div>
-          <div className="text-sm text-gray-600 font-medium">backrun rebate</div>
+          <div className="text-sm text-gray-600 font-medium">backrun refund</div>
         </div>
       </div>
 
@@ -302,12 +314,16 @@ export default function RefundStatus() {
             <div className="flex gap-2">
               <Select
                 size="small"
-                style={{ width: 120 }}
+                style={{ width: 140 }}
                 value={sourceFilter}
-                onChange={(v) => { setSourceFilter(v); }}
+                onChange={(v) => {
+                  setSourceFilter(v);
+                  setTable(prev => ({ ...prev, rows: [], total: 0, page: 1 }));
+                }}
               >
                 <Option value="all">All Source</Option>
                 <Option value="internal">Internal</Option>
+                <Option value="new_internal" disabled={brand !== 'blink'}>New Internal</Option>
                 <Option value="external">External</Option>
               </Select>
               <Tooltip title={sortConfig.field === 'rebate' ? (sortConfig.direction === 'desc' ? 'Highest first' : 'Lowest first') : 'Sort by rebate'}>
@@ -317,7 +333,7 @@ export default function RefundStatus() {
                   icon={<DollarOutlined />}
                   onClick={() => handleSort('rebate')}
                 >
-                  Rebate
+                  Refund
                   {sortConfig.field === 'rebate' && (
                     <span className="ml-1">
                       {sortConfig.direction === 'desc' ? '↓' : '↑'}
@@ -338,11 +354,11 @@ export default function RefundStatus() {
             <table className="w-full text-sm min-w-[900px]">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="text-left py-2 px-3 text-gray-600">tx hash</th>
+                  <th className="text-left py-2 px-3 text-gray-600">backrun hash</th>
                   <th className="text-left py-2 px-3 text-gray-600">target tx</th>
                   <th className="text-left py-2 px-3 text-gray-600">source</th>
                   <th className="text-left py-2 px-3 text-gray-600">blockNum</th>
-                  <th className="text-left py-2 px-3 text-gray-600">rebate</th>
+                  <th className="text-left py-2 px-3 text-gray-600">refund</th>
                   <th className="text-left py-2 px-3 text-gray-600">timestamp</th>
                 </tr>
               </thead>
@@ -360,7 +376,11 @@ export default function RefundStatus() {
                           ? <a href={toExplorerTx(r.targetTx)} target="_blank" rel="noreferrer" className="hover:underline">{shortHash(r.targetTx)}</a>
                           : <span className="text-gray-400">—</span>}
                       </td>
-                      <td className="py-2 px-3 text-gray-700">{r.source === 'internal' ? <Tag color="gold">internal</Tag> : <Tag color="blue">external</Tag>}</td>
+                      <td className="py-2 px-3 text-gray-700">
+                        {r.source === 'internal' ? <Tag color="gold">internal</Tag> :
+                         r.source === 'new_internal' ? <Tag color="cyan">new internal</Tag> :
+                         <Tag color="blue">external</Tag>}
+                      </td>
                       <td className="py-2 px-3">
                         <a href={toExplorerBlock(r.blockNum)} target="_blank" rel="noreferrer" className="hover:underline">{formatNumber(r.blockNum)}</a>
                       </td>
@@ -377,13 +397,13 @@ export default function RefundStatus() {
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-600">Page Size</span>
-                <Select size="small" style={{ width: 100 }} value={String(table.limit)} onChange={(v) => loadTable(1, Number(v), keyword)}>
+                <Select size="small" style={{ width: 100 }} value={String(table.limit)} onChange={(v) => loadTable(1, Number(v), keyword, sourceFilter)}>
                   <Option value="12">12</Option>
                   <Option value="24">24</Option>
                   <Option value="48">48</Option>
                 </Select>
               </div>
-              <Pagination size="small" current={table.page} pageSize={table.limit} total={table.total} showSizeChanger={false} onChange={(p) => loadTable(p, table.limit, keyword)} />
+              <Pagination size="small" current={table.page} pageSize={table.limit} total={table.total} showSizeChanger={false} onChange={(p) => loadTable(p, table.limit, keyword, sourceFilter)} />
             </div>
           </div>
         </div>

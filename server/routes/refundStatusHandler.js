@@ -65,7 +65,7 @@ router.get('/tx', async (req, res) => {
         const sort = (req.query.sort || 'time').toLowerCase() === 'rebate' ? 'rebate' : 'time'
         const dir = (req.query.dir || 'desc').toLowerCase() === 'asc' ? 'asc' : 'desc'
         const srcQ = String(req.query.source || 'all').toLowerCase()
-        const source = (srcQ === 'internal' || srcQ === 'external') ? srcQ : 'all'
+        const source = (srcQ === 'internal' || srcQ === 'external' || srcQ === 'new_internal') ? srcQ : 'all'
 
         if (!start || !end) return res.status(400).json({ success: false, error: 'missing range' })
         const r = await getRefundTx({ brand, start, end, page, limit, keyword: q, sortBy: sort, sortDir: dir, source })
