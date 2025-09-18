@@ -223,6 +223,12 @@ export default function RefundStatus() {
   }, [brand, loadSummary, loadTable, table.limit, sourceFilter]);
 
   useEffect(() => {
+    if (brand !== 'blink' && sourceFilter === 'new_internal') {
+      setSourceFilter('all');
+    }
+  }, [brand, sourceFilter]);
+
+  useEffect(() => {
     const h = setTimeout(() => { loadTable(1, table.limit, keyword, sourceFilter); }, 400);
     return () => clearTimeout(h);
   }, [keyword, table.limit, loadTable, sourceFilter]);

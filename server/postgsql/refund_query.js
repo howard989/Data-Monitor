@@ -111,7 +111,12 @@ async function getRefundTx({ brand, start, end, page = 1, limit = 12, keyword = 
     let intTypeCond = `false`
     if (cfg.internalTypes.length) {
         if (src === 'new_internal') {
-            intTypeCond = `a.refund_type = 'blinkNew'`
+            if (cfg.brand === 'blink') {
+                intTypeCond = `a.refund_type = 'blinkNew'`
+            } else {
+                intTypeCond = `a.refund_type = ANY($${intI++}::text[])`
+                intVals.push(cfg.internalTypes.filter(t => t !== 'blinkNew'))
+            }
         } else if (src === 'internal') {
             intTypeCond = `a.refund_type = ANY($${intI++}::text[]) AND a.refund_type != 'blinkNew'`
             intVals.push(cfg.internalTypes.filter(t => t !== 'blinkNew'))
