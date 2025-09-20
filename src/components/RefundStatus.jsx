@@ -76,8 +76,8 @@ async function fetchAllowedBrands() {
   const data = await res.json();
   return { allowed: Array.isArray(data?.allowed) ? data.allowed : [], user: data?.user || '' };
 }
-async function fetchRefundSummary({ brand, start, end }) {
-  const qs = new URLSearchParams({ brand, start, end }).toString();
+async function fetchRefundSummary({ brand, start, end, source = 'all' }) {
+  const qs = new URLSearchParams({ brand, start, end, source }).toString();
   const res = await authedFetch(`/api/refund/summary?${qs}`);
   if (!res.ok) {
     const text = await res.text();
@@ -159,6 +159,7 @@ export default function RefundStatus() {
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
   const [sourceFilter, setSourceFilter] = useState('all');
   const [sortConfig, setSortConfig] = useState({ field: null, direction: null });
+  const [activeMonthFilter, setActiveMonthFilter] = useState('current');
 
   const compactRangeLabel = useCallback((start, end) => {
     if (!start || !end) return '';
@@ -170,19 +171,22 @@ export default function RefundStatus() {
     return `${s.format('MMM D, YYYY')} – ${e.format('MMM D, YYYY')}`;
   }, [timezone]);
 
-  const quickSetRange = useCallback((days) => {
-    const end = dayjs().tz(timezone).endOf('day').format('YYYY-MM-DD HH:mm');
-    const start = dayjs().tz(timezone).subtract(days, 'day').startOf('day').format('YYYY-MM-DD HH:mm');
+  const setMonthPreset = useCallback((preset) => {
+    const now = dayjs().tz(timezone);
+    const target = preset === 'prev' ? now.subtract(1, 'month') : now;
+    const start = target.startOf('month').format('YYYY-MM-DD HH:mm');
+    const end = (preset === 'current' ? now.endOf('day') : target.endOf('month')).format('YYYY-MM-DD HH:mm');
     setDateRange({ start, end });
+    setActiveMonthFilter(preset);
   }, [timezone]);
 
   const loadSummary = useCallback(async () => {
     if (!brand) return;
-    const s = await fetchRefundSummary({ brand, start: startUtc, end: endUtc });
+    const s = await fetchRefundSummary({ brand, start: startUtc, end: endUtc, source: sourceFilter });
     setSummary(s);
-  }, [brand, startUtc, endUtc]);
+  }, [brand, startUtc, endUtc, sourceFilter]);
 
-  const loadTable = useCallback(async (p = table.page, l = table.limit, kw = keyword, src = sourceFilter) => {
+  const loadTable = useCallback(async (p, l, kw, src) => {
     if (!brand) {
       setTable({ rows: [], total: 0, page: 1, limit: l });
       return;
@@ -200,7 +204,7 @@ export default function RefundStatus() {
     } catch (e) {
       setTable({ rows: [], total: 0, page: p, limit: l });
     }
-  }, [brand, startUtc, endUtc, sortConfig, sourceFilter, table.page, table.limit, keyword]);
+  }, [brand, startUtc, endUtc, sortConfig]);
 
   const handleSort = (field) => {
     setSortConfig(prev => {
@@ -220,7 +224,7 @@ export default function RefundStatus() {
       setTable((prev) => ({ ...prev, page: 1 }));
       setLastUpdatedAt(new Date());
     })();
-  }, [brand, loadSummary, loadTable, table.limit, sourceFilter]);
+  }, [brand, loadSummary, startUtc, endUtc, table.limit, sourceFilter, sortConfig, keyword]);
 
   useEffect(() => {
     if (brand !== 'blink' && sourceFilter === 'new_internal') {
@@ -231,7 +235,7 @@ export default function RefundStatus() {
   useEffect(() => {
     const h = setTimeout(() => { loadTable(1, table.limit, keyword, sourceFilter); }, 400);
     return () => clearTimeout(h);
-  }, [keyword, table.limit, loadTable, sourceFilter]);
+  }, [keyword, table.limit, sourceFilter, brand, startUtc, endUtc, sortConfig]);
 
   const isAdmin = String(who || '').toLowerCase() === 'admin';
   const brandTabs = isAdmin && allowedBrands.length > 1 ? (
@@ -241,9 +245,6 @@ export default function RefundStatus() {
     }))} />
   ) : null;
 
-  useEffect(() => {
-    loadTable(1, table.limit, keyword, sourceFilter);
-  }, [sourceFilter]);
 
 
   return (
@@ -305,17 +306,32 @@ export default function RefundStatus() {
           <div className="flex flex-wrap items-center gap-3">
             <DateRangePicker
               value={dateRange}
-              onChange={(val) => { if (!val || !val.start || !val.end) return; setDateRange(val); }}
+              onChange={(val) => { 
+                if (!val || !val.start || !val.end) return; 
+                setDateRange(val);
+                setActiveMonthFilter(null);
+              }}
               format="YYYY-MM-DD HH:mm"
               showTime={{ format: 'HH:mm' }}
               allowClear={false}
               className="w-full md:w-[420px]"
               timezone={timezone}
             />
-            <div className="grid grid-cols-3 gap-2">
-              <Button onClick={() => quickSetRange(7)} size="small">7D</Button>
-              <Button onClick={() => quickSetRange(30)} size="small">30D</Button>
-              <Button onClick={() => quickSetRange(90)} size="small">90D</Button>
+            <div className="flex gap-2">
+              <Button 
+                onClick={() => setMonthPreset('current')} 
+                size="small" 
+                type={activeMonthFilter === 'current' ? 'primary' : 'default'}
+              >
+                This Month
+              </Button>
+              <Button 
+                onClick={() => setMonthPreset('prev')} 
+                size="small"
+                type={activeMonthFilter === 'prev' ? 'primary' : 'default'}
+              >
+                Last Month
+              </Button>
             </div>
             <div className="flex gap-2">
               <Select
@@ -352,6 +368,16 @@ export default function RefundStatus() {
 
           <div className="flex flex-wrap items-center gap-3">
             <Input allowClear value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="Search tx / hash / block..." style={{ width: 320 }} prefix={<SearchOutlined />} />
+            <Button 
+              onClick={() => {
+                setKeyword('');
+                setSourceFilter('all');
+                setSortConfig({ field: null, direction: null });
+              }}
+              type="default"
+            >
+              Clear All Filters
+            </Button>
           </div>
         </div>
 

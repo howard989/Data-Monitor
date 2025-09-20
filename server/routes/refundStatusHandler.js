@@ -39,8 +39,9 @@ router.get('/summary', async (req, res) => {
         const brand = sanitizeBrandForUser(user, req.query.brand || '')
         const start = req.query.start
         const end = req.query.end
+        const source = req.query.source || 'all'
         if (!start || !end) return res.status(400).json({ success: false, error: 'missing range' })
-        const r = await getRefundSummary({ brand, start, end })
+        const r = await getRefundSummary({ brand, start, end, source })
         res.set('Cache-Control', 'private, max-age=10, stale-while-revalidate=30')
         res.json(r)
     } catch (e) {

@@ -612,10 +612,10 @@ const SandwichStats = () => {
 
 
     Promise.allSettled([
-      fetchStats(dateRange.start, dateRange.end),
-      fetchBlocks(),
-      loadBuilders()
-    ]).catch(console.error);
+      fetchStats(dateRange.start, dateRange.end).catch(console.error),
+      fetchBlocks().catch(console.error),
+      loadBuilders().catch(console.error)
+    ]);
   }, [authToken]);
 
 
@@ -834,36 +834,49 @@ const SandwichStats = () => {
                 )}
               </div>
             </div>
-            <div className={`flex ${isMobile ? 'w-full justify-between' : 'items-center'} gap-2`}>
-              <div className="flex items-center gap-2">
-                {bnbUsdt && (
-                  <div className="text-sm text-gray-600 flex items-center">
-                    1 BNB ≈ ${bnbUsdt.toFixed(2)} USD
-                  </div>
-                )}
+            <div>
+              <div className={`flex ${isMobile ? 'w-full justify-between' : 'items-center'} gap-2`}>
+                <div className="flex items-center gap-2">
+                  {bnbUsdt && (
+                    <div className="text-sm text-gray-600 flex items-center">
+                      1 BNB ≈ ${bnbUsdt.toFixed(2)} USD
+                    </div>
+                  )}
 
-                <Tooltip
-                  title={isPaused ? 'Resume auto refresh' : 'Pause auto refresh'}
-                  placement="top"
-                >
-                  <Button
-                    type="text"
-                    onClick={toggle}
-                    aria-pressed={isPaused}
-                    icon={isPaused ? <EyeOutlined /> : <EyeInvisibleOutlined />}
-                    aria-label={isPaused ? 'Resume auto refresh' : 'Pause auto refresh'}
-                  />
-                </Tooltip>
+                  <Tooltip
+                    title={isPaused ? 'Resume auto refresh' : 'Pause auto refresh'}
+                    placement="top"
+                  >
+                    <Button
+                      type="text"
+                      onClick={toggle}
+                      aria-pressed={isPaused}
+                      icon={isPaused ? <EyeOutlined /> : <EyeInvisibleOutlined />}
+                      aria-label={isPaused ? 'Resume auto refresh' : 'Pause auto refresh'}
+                    />
+                  </Tooltip>
+                </div>
+
+                <div className="h-5 w-px bg-gray-300 hidden sm:block"></div>
+
+                <div className={`${isMobile ? 'w-[180px]' : ''}`}>
+                  <TimezoneSelector />
+                </div>
+                <div className={`flex ${isMobile ? 'w-full justify-end' : 'items-center'} gap-2`}>
+                  {/* <Button onClick={handleExportCSV}>Export CSV</Button> */}
+                  {/* <Button type="primary" onClick={handleExportPDF}>Generate PDF</Button> */}
+                </div>
               </div>
-
-              <div className="h-5 w-px bg-gray-300 hidden sm:block"></div>
-
-              <div className={`${isMobile ? 'w-[180px]' : ''}`}>
-                <TimezoneSelector />
-              </div>
-              <div className={`flex ${isMobile ? 'w-full justify-end' : 'items-center'} gap-2`}>
-                {/* <Button onClick={handleExportCSV}>Export CSV</Button> */}
-                {/* <Button type="primary" onClick={handleExportPDF}>Generate PDF</Button> */}
+              
+              <div className="mt-2">
+                <Link to="/sandwich-detect-logic">
+                  <Button 
+                    type="primary"
+                    size="small"
+                  >
+                    Detection Logic
+                  </Button>
+                </Link>
               </div>
             </div>
           </div>
@@ -1132,7 +1145,7 @@ const SandwichStats = () => {
                 This Month
               </Button>
 
-              {/* <Button
+              <Button
                 size="middle"
                 onClick={() => {
                   const anchor = getAnchorMs(recentBlocks);
@@ -1141,7 +1154,7 @@ const SandwichStats = () => {
                 disabled={statsLoading || isPaused}
               >
                 Last Month
-              </Button> */}
+              </Button>
 
               <Button
                 size="middle"

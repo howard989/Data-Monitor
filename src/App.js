@@ -11,6 +11,7 @@ import SandwichStats from './components/SandwichStats';
 import DataCenter from './components/DataCenter';
 import BlockProduction from './components/BlockProduction';
 import RefundStatus from './components/RefundStatus';
+import SandwichDetectLogic from './components/SandwichDetectLogic';
 import { TimezoneProvider } from './context/TimezoneContext';
 
 const antdTheme = {
@@ -61,6 +62,15 @@ function App() {
                                     element={
                                         <PrivateRoute>
                                             <SandwichStats />
+                                        </PrivateRoute>
+                                    }
+                                />
+
+                                <Route
+                                    path="/sandwich-detect-logic"
+                                    element={
+                                        <PrivateRoute>
+                                            <SandwichDetectLogic />
                                         </PrivateRoute>
                                     }
                                 />

@@ -11,7 +11,6 @@ import { useTimezone } from '../context/TimezoneContext';
 import TimezoneSelector from './TimezoneSelector';
 import DateRangePicker from './common/DateRangePicker';
 import {
-  fetchBlockProductionStats,
   fetchBuildersTable,
   fetchRange13Months
 } from '../data/apiSandwichStats';
@@ -134,15 +133,6 @@ function BlockProduction() {
     }
   }, [tableTimeRangeUTC.start, tableTimeRangeUTC.end, denom]);
 
-  const loadStats = useCallback(async () => {
-    try {
-      const res = await fetchBlockProductionStats(dateRange.start, dateRange.end);
-      setStats(res?.data || null);
-    } catch (error) {
-      console.error('Failed to load stats:', error);
-    }
-  }, [dateRange.start, dateRange.end]);
-
 
   const queryResultsForDay = useCallback(async () => {
     if (!resultsDate) return;
@@ -163,7 +153,6 @@ function BlockProduction() {
   const loadAllData = async () => {
     setLoading(true);
     try {
-      await loadStats();
       await queryResultsForDay();
     } finally {
       setLoading(false);
@@ -557,28 +546,44 @@ function BlockProduction() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-9 order-2 lg:order-1">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-8">
-            <div className="bg-white border border-gray-200 rounded-xl p-6">
-              <div className={`${isMobile ? 'text-3xl' : 'text-4xl'} font-bold text-yellow-400 mb-2 text-center`}>
-                {stats ? formatNumber(stats.builder_blocks) : '—'}
+
+
+        <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+              <h2 className="relative pl-3 text-base font-semibold text-gray-900 leading-6">
+                <span aria-hidden className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 bg-yellow-400"></span>
+                Results
+              </h2>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <DatePicker
+                  size="small"
+                  value={resultsDate ? dayjs(resultsDate) : null}
+                  onChange={(date) => setResultsDate(date ? date.format('YYYY-MM-DD') : null)}
+                  format="YYYY-MM-DD"
+                />
+                <Button size="small" onClick={queryResultsForDay}>QUERY</Button>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600">Denominator</span>
+                  <Select
+                    size="small"
+                    value={denom}
+                    onChange={setDenom}
+                    style={{ width: 140 }}
+                  >
+                    <Option value="total">All blocks</Option>
+                    <Option value="builder">Builder blocks</Option>
+                  </Select>
+                </div>
               </div>
-              <div className="text-sm text-gray-600 font-medium text-center">MEV_Builder_Blocks</div>
-              <div className="text-xs text-gray-400 mt-1 text-center">@bnbchain</div>
             </div>
-            <div className="bg-white border border-gray-200 rounded-xl p-6 text-center">
-              <div className={`${isMobile ? 'text-3xl' : 'text-4xl'} font-bold text-gray-900 mb-2`}>
-                {stats ? formatNumber(stats.total_blocks) : '—'}
-              </div>
-              <div className="text-sm text-gray-600 font-medium">Total_MEV_Blocks</div>
-              <div className="text-xs text-gray-400 mt-1">@bnbchain</div>
-            </div>
-            <div className="bg-white border border-gray-200 rounded-xl p-6 text-center">
-              <div className={`${isMobile ? 'text-3xl' : 'text-4xl'} font-bold text-red-500 mb-2`}>
-                {stats ? formatNumber(stats.total_builders) : '—'}
-              </div>
-              <div className="text-sm text-gray-600 font-medium">Total_Builders</div>
-              <div className="text-xs text-gray-400 mt-1">@bnbchain</div>
-            </div>
+            <Tabs
+              activeKey={activeResultsTab}
+              onChange={setActiveResultsTab}
+              destroyInactiveTabPane={false}
+              animated={false}
+              items={resultTabs}
+            />
           </div>
 
           {dateRange.start && dateRange.end && (
@@ -633,43 +638,6 @@ function BlockProduction() {
           )}
 
 
-          <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 mb-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-              <h2 className="relative pl-3 text-base font-semibold text-gray-900 leading-6">
-                <span aria-hidden className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 bg-yellow-400"></span>
-                Results
-              </h2>
-
-              <div className="flex flex-wrap items-center gap-3">
-                <DatePicker
-                  size="small"
-                  value={resultsDate ? dayjs(resultsDate) : null}
-                  onChange={(date) => setResultsDate(date ? date.format('YYYY-MM-DD') : null)}
-                  format="YYYY-MM-DD"
-                />
-                <Button size="small" onClick={queryResultsForDay}>QUERY</Button>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">Denominator</span>
-                  <Select
-                    size="small"
-                    value={denom}
-                    onChange={setDenom}
-                    style={{ width: 140 }}
-                  >
-                    <Option value="total">All blocks</Option>
-                    <Option value="builder">Builder blocks</Option>
-                  </Select>
-                </div>
-              </div>
-            </div>
-            <Tabs
-              activeKey={activeResultsTab}
-              onChange={setActiveResultsTab}
-              destroyInactiveTabPane={false}
-              animated={false}
-              items={resultTabs}
-            />
-          </div>
         </div>
 
         <div className="lg:col-span-3 order-1 lg:order-2">

@@ -21,27 +21,46 @@ const ADDR = {
 function brandCfg(brand) {
     const b = String(brand || '').toLowerCase()
     if (b === 'binancewallet') return { brand: 'binanceWallet', internalTypes: ['binanceWallet'], externalTo: [], restrictRouter: ADDR.routerOurs }
-    if (b === 'pancakeswap') return { brand: 'pancakeswap', internalTypes: ['pancakeSwap'], externalTo: [ADDR.pancakeswap], restrictRouter: null }
-    if (b === 'blink') return { brand: 'blink', internalTypes: ['blink', 'blinkBlockRazor', 'blinkNew'], externalTo: [ADDR.blink], restrictRouter: null }
+    if (b === 'pancakeswap') return { brand: 'pancakeswap', internalTypes: ['pancakeSwap'], externalTo: [ADDR.pancakeswap], restrictRouter: ADDR.routerOurs }
+    if (b === 'blink') return { brand: 'blink', internalTypes: ['blink', 'blinkBlockRazor', 'blinkNew'], externalTo: [ADDR.blink], restrictRouter: ADDR.routerOurs }
     if (b === 'merkle') return { brand: 'merkle', internalTypes: [], externalTo: [ADDR.merkle], restrictRouter: null }
     return { brand: 'invalid', internalTypes: [], externalTo: [], restrictRouter: null }
 }
 
 function toTs(v) { return new Date(v).toISOString() }
 
-async function getRefundSummary({ brand, start, end }) {
+async function getRefundSummary({ brand, start, end, source = 'all' }) {
     const cfg = brandCfg(brand)
+    const src = String(source || 'all').toLowerCase()
+    const wantsInternal = (src === 'all' || src === 'internal' || src === 'new_internal') && cfg.internalTypes.length
+    const wantsExternal = (src === 'all' || src === 'external') && cfg.externalTo.length
 
     let intCnt = 0
     let intProfit = '0'
     let intRefund = '0'
     let sinceInt = null
 
-    if (cfg.internalTypes.length) {
+    if (wantsInternal) {
         let i = 1
         const iv = []
         const condTime = `block_time >= $${i++}::timestamptz AND block_time <= $${i++}::timestamptz`; iv.push(toTs(start), toTs(end))
-        const condType = `refund_type = ANY($${i++}::text[])`; iv.push(cfg.internalTypes)
+        
+        let condType = `false`
+        if (src === 'new_internal') {
+            if (cfg.brand === 'blink') {
+                condType = `refund_type = 'blinkNew'`
+            } else {
+                condType = `refund_type = ANY($${i++}::text[])`
+                iv.push(cfg.internalTypes.filter(t => t !== 'blinkNew'))
+            }
+        } else if (src === 'internal') {
+            condType = `refund_type = ANY($${i++}::text[]) AND refund_type != 'blinkNew'`
+            iv.push(cfg.internalTypes.filter(t => t !== 'blinkNew'))
+        } else {
+            condType = `refund_type = ANY($${i++}::text[])`
+            iv.push(cfg.internalTypes)
+        }
+        
         const condRouter = cfg.restrictRouter ? `router_address = $${i++}` : `true`; if (cfg.restrictRouter) iv.push(cfg.restrictRouter.toLowerCase())
         const baseWhere = `${condTime} AND ${condType} AND ${condRouter}`
         const baseFrom = `FROM ${T_INTERNAL} WHERE ${baseWhere}`
@@ -62,7 +81,7 @@ async function getRefundSummary({ brand, start, end }) {
     let extRefund = '0'
     let sinceExt = null
 
-    if (cfg.externalTo.length) {
+    if (wantsExternal) {
         let j = 1
         const ev = []
         const condTime = `block_time >= $${j++}::timestamptz AND block_time <= $${j++}::timestamptz`; ev.push(toTs(start), toTs(end))
