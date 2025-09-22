@@ -522,11 +522,7 @@ async function getRecentBlocks(limit = 50) {
       block_time,
       block_time_ms,
       updated_at,
-      CASE
-        WHEN builder_kind = 'builder' THEN builder_group
-        WHEN builder_kind = 'bribe'   THEN builder_bribe_name
-        ELSE NULL
-      END AS builder_name,
+      builder_group AS builder_name,
       validator_name
     FROM ${TBL_OVERVIEW}
     ORDER BY block_number DESC
@@ -586,11 +582,7 @@ async function getBlockMeta(blockNumber) {
       has_sandwich,
       block_time,
       block_time_ms,
-      CASE
-        WHEN builder_kind = 'builder' THEN builder_group
-        WHEN builder_kind = 'bribe'   THEN builder_bribe_name
-        ELSE NULL
-      END AS builder_name,
+      builder_group AS builder_name,
       validator_name
     FROM ${TBL_OVERVIEW}
     WHERE block_number = $1;
