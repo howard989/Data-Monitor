@@ -632,7 +632,8 @@ const SandwichStats = () => {
       fetchStats(dateRange.start, dateRange.end, { silent: true });
       fetchBlocks();
       setLastUpdate(new Date());
-    }, 60000);
+    // }, 60000);
+  }, 30 * 60 * 1000);
 
     return () => {
       clearInterval(statsInterval);
