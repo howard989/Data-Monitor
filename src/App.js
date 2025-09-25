@@ -12,6 +12,7 @@ import DataCenter from './components/DataCenter';
 import BlockProduction from './components/BlockProduction';
 import RefundStatus from './components/RefundStatus';
 import SandwichDetectLogic from './components/SandwichDetectLogic';
+import ValidatorStatusMonitor from './components/ValidatorStatusMonitor';
 import { TimezoneProvider } from './context/TimezoneContext';
 
 const antdTheme = {
@@ -89,6 +90,15 @@ function App() {
                                     element={
                                         <PrivateRoute>
                                             <RefundStatus />
+                                        </PrivateRoute>
+                                    }
+                                />
+
+                                <Route
+                                    path="/validator-status"
+                                    element={
+                                        <PrivateRoute>
+                                            <ValidatorStatusMonitor />
                                         </PrivateRoute>
                                     }
                                 />

@@ -23,6 +23,8 @@ const authMiddleware = require('../src/middleware/authMiddleware');
 
 const sandwichStatsHandler = require('./routes/sandwichStatsHandler');
 const refundStatusHandler = require('./routes/refundStatusHandler')
+const validatorStatusHandler = require('./routes/validatorStatusHandler');
+
 
 
 
@@ -79,7 +81,7 @@ const cookieOptions = {
             return res.status(400).json({ message: 'Password incorrect' });
         }
 
-        const access = jwt.sign({ username }, SECRET_KEY, { expiresIn: '12h' });
+        const access = jwt.sign({ username }, SECRET_KEY, { expiresIn: '2h' });
         const refresh = jwt.sign({ username }, REFRESH_SECRET, { expiresIn: '30d' });
         res.cookie('rt', refresh, cookieOptions);
         res.json({ token: access });
@@ -95,7 +97,7 @@ app.post('/api/auth/refresh', async (req, res) => {
     if (!token) return res.status(401).json({ success: false });
     try {
       const payload = jwt.verify(token, REFRESH_SECRET);
-      const access = jwt.sign({ username: payload.username }, SECRET_KEY, { expiresIn: '12h' });
+      const access = jwt.sign({ username: payload.username }, SECRET_KEY, { expiresIn: '2h' });
       const refresh = jwt.sign({ username: payload.username }, REFRESH_SECRET, { expiresIn: '30d' });
       res.cookie('rt', refresh, cookieOptions);
       res.json({ success: true, token: access });
@@ -130,7 +132,7 @@ app.post('/api/secondary-login', async (req, res) => {
         const access = jwt.sign(
             { username: user.username, role: user.role },
             SECRET_KEY,
-            { expiresIn: '12h' }
+            { expiresIn: '2h' }
         );
         const refresh = jwt.sign(
             { username: user.username, role: user.role },
@@ -160,6 +162,8 @@ app.post('/api/secondary-login', async (req, res) => {
 
 app.use('/api/sandwich', sandwichStatsHandler);
 app.use('/api/refund', authMiddleware, refundStatusHandler)
+app.use('/api/validator', authMiddleware, validatorStatusHandler)
+
 
 
 
